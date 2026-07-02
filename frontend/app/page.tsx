@@ -7,17 +7,10 @@ const metricCards = [
 export default function Home() {
   return (
     <main
-      style={{
-        minHeight: "100vh",
-        padding: "48px",
-        fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        background: "#f7f9fb",
-        color: "#17202a"
-      }}
+    className="min-h-screen p-12 bg-background text-foreground"
     >
       <section style={{ maxWidth: "960px" }}>
-        <p style={{ margin: "0 0 12px", color: "#516170", fontSize: "14px" }}>
+        <p style={{ margin: "0 0 12px", color: "#516170", fontSize: "14px"}}>
           AI Garmin Coach
         </p>
         <h1 style={{ margin: "0 0 16px", fontSize: "40px", lineHeight: 1.1 }}>
