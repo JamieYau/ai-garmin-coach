@@ -44,20 +44,25 @@ Required variables are grouped in `.env.example`:
 
 ## Development Commands
 
-Project manifests are not committed yet. Once the backend and frontend scaffolds are added, these will be the standard local commands:
-
-```bash
-cd frontend
-npm run dev
-npm run lint
-```
+Backend commands are available from `backend/` after installing `uv`:
 
 ```bash
 cd backend
-uvicorn app.main:app --reload
-pytest
-alembic upgrade head
+uv sync --dev
+uv run uvicorn app.main:app --reload
+uv run pytest
+uv run ruff check
+uv run mypy app
 ```
+
+Once Alembic migrations exist, apply them with:
+
+```bash
+cd backend
+uv run alembic upgrade head
+```
+
+Frontend commands will be added when the Next.js scaffold lands in Phase 2.
 
 ## Status
 MVP in development
