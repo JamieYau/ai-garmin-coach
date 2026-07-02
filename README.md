@@ -49,6 +49,7 @@ Backend commands are available from `backend/` after installing `uv`:
 ```bash
 cd backend
 uv sync --dev
+uv run python --version
 uv run uvicorn app.main:app --reload
 uv run pytest
 uv run ruff check
