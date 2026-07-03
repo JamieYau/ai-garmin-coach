@@ -1,5 +1,6 @@
 import { Activity, Bed, Brain, HeartPulse, RefreshCw } from "lucide-react";
 
+import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 
 const metrics = [
@@ -81,10 +82,12 @@ export default function DashboardPage() {
             <Brain className="size-5 text-muted-foreground" aria-hidden="true" />
             <h2 className="text-base font-semibold">Coach recommendation</h2>
           </div>
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Connect Garmin and complete the first sync to generate structured
-            training guidance from recent activities, sleep, and recovery data.
-          </p>
+          <EmptyState
+            className="mt-4 min-h-48"
+            icon={Brain}
+            title="No coach insight yet"
+            description="Connect Garmin and complete the first sync to generate structured training guidance from recent activities, sleep, and recovery data."
+          />
         </article>
 
         <article
