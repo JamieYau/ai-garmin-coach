@@ -63,7 +63,19 @@ cd backend
 uv run alembic upgrade head
 ```
 
-Frontend commands will be added when the Next.js scaffold lands in Phase 2.
+Frontend commands are available from `frontend/`:
+
+```bash
+cd frontend
+npm install
+npm run dev
+npm run lint
+npm run lint:fix
+npm run format:check
+npm run format
+npm run typecheck
+npm run test
+```
 
 ## Status
 MVP in development

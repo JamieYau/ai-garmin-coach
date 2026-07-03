@@ -25,10 +25,14 @@ export function MainNav() {
           <span className="hidden sm:inline">AI Garmin Coach</span>
         </Link>
 
-        <nav className="flex items-center gap-1" aria-label="Primary navigation">
+        <nav
+          className="flex items-center gap-1"
+          aria-label="Primary navigation"
+        >
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === "/dashboard" && item.href === "/dashboard";
+            const isActive =
+              pathname === "/dashboard" && item.href === "/dashboard";
 
             return (
               <Link
@@ -36,7 +40,7 @@ export function MainNav() {
                 href={item.href}
                 className={cn(
                   "inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  isActive && "bg-muted text-foreground"
+                  isActive && "bg-muted text-foreground",
                 )}
                 aria-current={isActive ? "page" : undefined}
               >

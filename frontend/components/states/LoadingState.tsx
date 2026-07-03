@@ -16,7 +16,7 @@ export function LoadingState({
     <div
       className={cn(
         "flex min-h-40 flex-col items-center justify-center rounded-lg border border-border bg-card p-6 text-center",
-        className
+        className,
       )}
       role="status"
       aria-live="polite"

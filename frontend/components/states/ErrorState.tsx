@@ -2,11 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +26,7 @@ export function ErrorState({
       variant="destructive"
       className={cn(
         "min-h-40 content-center p-6 has-data-[slot=alert-action]:pr-6",
-        className
+        className,
       )}
     >
       <AlertTriangle className="size-5" aria-hidden="true" />

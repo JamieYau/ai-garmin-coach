@@ -3,7 +3,7 @@ const DEFAULT_API_BASE_URL = "http://localhost:8000";
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -19,7 +19,7 @@ export function getApiBaseUrl() {
 
 export async function apiFetchJson<T>(
   path: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
@@ -32,7 +32,7 @@ export async function apiFetchJson<T>(
   if (!response.ok) {
     throw new ApiError(
       `API request failed with status ${response.status}`,
-      response.status
+      response.status,
     );
   }
 

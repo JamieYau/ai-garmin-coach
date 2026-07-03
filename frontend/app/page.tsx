@@ -65,7 +65,10 @@ export default function Home() {
                 </p>
                 <p className="mt-1 text-2xl font-semibold">Ready to sync</p>
               </div>
-              <ShieldCheck className="size-6 text-muted-foreground" aria-hidden="true" />
+              <ShieldCheck
+                className="size-6 text-muted-foreground"
+                aria-hidden="true"
+              />
             </div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-3">
               {highlights.map((item) => (
