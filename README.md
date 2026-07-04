@@ -10,7 +10,7 @@ The MVP connects a user's Garmin data, stores normalized training and recovery r
 - Frontend: Next.js App Router, TypeScript, Tailwind, shadcn/ui or Radix, TanStack Query
 - Backend: FastAPI, Pydantic, SQLAlchemy 2.0, Alembic
 - Database: PostgreSQL
-- Auth: Better Auth for your app users
+- Auth: Better Auth
 - Garmin integration: python-garminconnect
 
 ## Repository Layout
@@ -61,6 +61,26 @@ Once Alembic migrations exist, apply them with:
 ```bash
 cd backend
 uv run alembic upgrade head
+```
+
+## Database Migrations
+
+The backend expects a native local PostgreSQL instance for development. Create a local database that matches `.env.example`, set `DATABASE_URL` in `.env`, then run Alembic through `uv` from `backend/`.
+
+Useful commands:
+
+```bash
+cd backend
+uv run alembic current
+uv run alembic revision --autogenerate -m "Describe schema change"
+uv run alembic upgrade head
+uv run alembic downgrade -1
+```
+
+If PostgreSQL client tools are installed, verify the local service with:
+
+```bash
+pg_isready -h localhost -p 5432
 ```
 
 Frontend commands are available from `frontend/`:

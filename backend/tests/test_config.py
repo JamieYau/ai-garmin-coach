@@ -17,3 +17,16 @@ def test_settings_load_from_environment(monkeypatch) -> None:
         "http://localhost:3000",
         "http://localhost:3001",
     ]
+
+
+def test_require_database_url_rejects_missing_value(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "")
+
+    settings = get_settings()
+
+    try:
+        settings.require_database_url()
+    except ValueError as error:
+        assert str(error) == "DATABASE_URL is required for database migrations"
+    else:
+        raise AssertionError("Expected missing database URL to raise")

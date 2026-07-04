@@ -18,7 +18,7 @@ def test_health_endpoint_reports_service_status(monkeypatch) -> None:
 
 
 def test_ready_endpoint_allows_unconfigured_database(monkeypatch) -> None:
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "")
     client = TestClient(create_app())
 
     response = client.get("/ready")

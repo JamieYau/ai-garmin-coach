@@ -33,6 +33,11 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
+    def require_database_url(self) -> str:
+        if not self.database_url:
+            raise ValueError("DATABASE_URL is required for database migrations")
+        return self.database_url
+
 
 @lru_cache
 def get_settings() -> Settings:
