@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.activity import Activity
     from app.models.biometric_sample import BiometricSample
     from app.models.daily_metric import DailyMetric
+    from app.models.raw_observation import RawObservation
     from app.models.sleep_session import SleepSession
     from app.models.sync_run import SyncRun
     from app.models.user import AppUser
@@ -63,6 +64,10 @@ class SourceConnection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         cascade="all, delete-orphan",
     )
     biometric_samples: Mapped[list[BiometricSample]] = relationship(
+        back_populates="source_connection",
+        cascade="all, delete-orphan",
+    )
+    raw_observations: Mapped[list[RawObservation]] = relationship(
         back_populates="source_connection",
         cascade="all, delete-orphan",
     )

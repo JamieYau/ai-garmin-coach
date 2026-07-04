@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.coach_insight import CoachInsight
+    from app.models.raw_observation import RawObservation
     from app.models.source_connection import SourceConnection
     from app.models.user import AppUser
 
@@ -38,6 +40,11 @@ class SyncRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     user: Mapped[AppUser] = relationship(back_populates="sync_runs")
     source_connection: Mapped[SourceConnection] = relationship(back_populates="sync_runs")
+    raw_observations: Mapped[list[RawObservation]] = relationship(
+        back_populates="sync_run",
+        cascade="all, delete-orphan",
+    )
+    coach_insights: Mapped[list[CoachInsight]] = relationship(back_populates="source_sync_run")
 
     __table_args__ = (
         CheckConstraint(
