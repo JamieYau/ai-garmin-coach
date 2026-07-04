@@ -39,6 +39,7 @@ Required variables are grouped in `.env.example`:
 - Local ports and URLs: `FRONTEND_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `FRONTEND_URL`, `NEXT_PUBLIC_API_BASE_URL`, `BACKEND_CORS_ORIGINS`.
 - PostgreSQL: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`.
 - Auth: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`.
+- Better Auth database: `BETTER_AUTH_DATABASE_URL`.
 - AI provider: `AI_PROVIDER`, `OPENAI_API_KEY`.
 - Garmin local setup: `GARMIN_USERNAME`, `GARMIN_PASSWORD`.
 
@@ -93,9 +94,16 @@ npm run lint
 npm run lint:fix
 npm run format:check
 npm run format
+npm run auth:generate
+npm run auth:migrate
 npm run typecheck
 npm run test
 ```
+
+For local email/password authentication, point `BETTER_AUTH_DATABASE_URL`
+at the same PostgreSQL database using the standard `postgresql://` URL form,
+then run `npm run auth:migrate` from `frontend/` to create Better Auth's
+tables.
 
 ## Status
 MVP in development

@@ -4,6 +4,9 @@ import { Activity, BarChart3, Brain, Home } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SignOutButton } from "@/components/auth/SignOutButton";
+import { buttonVariants } from "@/components/ui/button";
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -14,6 +17,7 @@ const navItems = [
 
 export function MainNav() {
   const pathname = usePathname();
+  const { data: session } = authClient.useSession();
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -50,6 +54,19 @@ export function MainNav() {
             );
           })}
         </nav>
+
+        <div className="flex min-w-20 justify-end">
+          {session ? (
+            <SignOutButton />
+          ) : (
+            <Link
+              href="/sign-in"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
