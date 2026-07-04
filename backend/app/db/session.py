@@ -5,6 +5,9 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.db.base import Base
+
+target_metadata = Base.metadata
 
 
 @lru_cache
