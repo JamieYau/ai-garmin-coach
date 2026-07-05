@@ -15,6 +15,11 @@ class ConnectorRecordType(StrEnum):
     BIOMETRIC_SAMPLE = "biometric_sample"
 
 
+class SyncStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class SourceCategory(StrEnum):
     FITNESS = "fitness"
     RECOVERY = "recovery"
@@ -155,9 +160,17 @@ class SyncResult(BaseModel):
 
     source_connection_id: uuid.UUID
     sync_run_id: uuid.UUID
+    status: SyncStatus = SyncStatus.SUCCEEDED
     raw_payloads: list[ProviderPayload] = Field(default_factory=list)
     normalized_records: list[NormalizedRecord] = Field(default_factory=list)
+    error_code: str | None = Field(default=None, max_length=128)
     error_message: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_failure_fields(self) -> SyncResult:
+        if self.status is SyncStatus.FAILED and self.error_message is None:
+            raise ValueError("failed sync results require an error_message")
+        return self
 
     @property
     def raw_payload_count(self) -> int:
