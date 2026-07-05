@@ -15,6 +15,42 @@ class ConnectorRecordType(StrEnum):
     BIOMETRIC_SAMPLE = "biometric_sample"
 
 
+class SourceCategory(StrEnum):
+    FITNESS = "fitness"
+    RECOVERY = "recovery"
+    CALENDAR = "calendar"
+    NUTRITION = "nutrition"
+    MOOD = "mood"
+    HABITS = "habits"
+    DEMO = "demo"
+
+
+class SourceCapability(StrEnum):
+    CONNECTION_SETUP = "connection_setup"
+    CREDENTIAL_VALIDATION = "credential_validation"
+    INCREMENTAL_SYNC = "incremental_sync"
+    BACKFILL_SYNC = "backfill_sync"
+    ACTIVITY_SYNC = "activity_sync"
+    DAILY_METRIC_SYNC = "daily_metric_sync"
+    SLEEP_SYNC = "sleep_sync"
+    BIOMETRIC_SYNC = "biometric_sync"
+    CALENDAR_SYNC = "calendar_sync"
+    NUTRITION_SYNC = "nutrition_sync"
+    MOOD_SYNC = "mood_sync"
+    HABIT_SYNC = "habit_sync"
+
+
+class SourceMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: str = Field(min_length=1, max_length=64)
+    display_name: str = Field(min_length=1, max_length=100)
+    category: SourceCategory
+    capabilities: tuple[SourceCapability, ...] = Field(default_factory=tuple)
+    enabled: bool = True
+    description: str | None = Field(default=None, max_length=500)
+
+
 class ConnectorCredential(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
