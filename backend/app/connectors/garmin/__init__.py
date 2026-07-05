@@ -9,7 +9,11 @@ from app.connectors.garmin.client import (
     GarminRateLimitError,
 )
 from app.connectors.garmin.connection import GarminConnectionService, GarminConnectionSettings
-from app.connectors.garmin.mappers import GarminActivityMapper
+from app.connectors.garmin.mappers import (
+    GarminActivityMapper,
+    GarminDailyMetricMapper,
+    GarminSleepSessionMapper,
+)
 from app.connectors.garmin.sync import GarminActivitySyncService
 
 __all__ = [
@@ -22,6 +26,8 @@ __all__ = [
     "GarminMfaRequiredError",
     "GarminRateLimitError",
     "GarminActivityMapper",
+    "GarminDailyMetricMapper",
+    "GarminSleepSessionMapper",
     "GarminActivitySyncService",
     "GarminConnectionService",
     "GarminConnectionSettings",

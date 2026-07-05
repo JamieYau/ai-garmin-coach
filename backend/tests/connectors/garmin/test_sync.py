@@ -13,7 +13,15 @@ from sqlalchemy.pool import StaticPool
 from app.connectors.garmin.sync import GarminActivitySyncService
 from app.core.security import encrypt_json_payload
 from app.db.models import Base
-from app.models import Activity, AppUser, RawObservation, SourceConnection, SyncRun
+from app.models import (
+    Activity,
+    AppUser,
+    DailyMetric,
+    RawObservation,
+    SleepSession,
+    SourceConnection,
+    SyncRun,
+)
 from app.schemas.connectors import BackfillSyncRequest, ConnectorRecordType, SyncStatus
 
 
@@ -36,6 +44,42 @@ class FakeGarminActivityClient:
     ) -> list[dict[str, Any]]:
         self.requested_window = (start_date, end_date, activity_type)
         return self.activities
+
+    def get_daily_summary(self, day: date) -> dict[str, Any]:
+        return {
+            "calendarDate": day.isoformat(),
+            "totalSteps": 10000,
+            "totalKilocalories": 2400,
+            "activeKilocalories": 620,
+            "floorsAscended": 7,
+            "activeSeconds": 3600,
+            "highlyActiveSeconds": 1800,
+            "restingHeartRate": 53,
+            "hrvMs": 48.5,
+            "stressAverage": 31.5,
+            "bodyBatteryMin": 22,
+            "bodyBatteryMax": 86,
+            "bodyBatteryLatest": 61,
+        }
+
+    def get_sleep_data(self, day: date) -> dict[str, Any]:
+        return {
+            "dailySleepDTO": {
+                "id": f"sleep-{day.isoformat()}",
+                "calendarDate": day.isoformat(),
+                "sleepStartTimestampGMT": "2026-07-04T22:45:00Z",
+                "sleepEndTimestampGMT": "2026-07-05T06:30:00Z",
+                "sleepTimeSeconds": 27900,
+                "deepSleepSeconds": 5100,
+                "remSleepSeconds": 6900,
+                "lightSleepSeconds": 13800,
+                "awakeSleepSeconds": 2100,
+                "averageSpo2": 96.2,
+                "avgOvernightHrv": 47.5,
+                "averageRespiration": 13.8,
+            },
+            "sleepScores": {"overall": {"value": 82}},
+        }
 
 
 def _create_session() -> Session:
@@ -182,6 +226,91 @@ def test_garmin_activity_sync_is_idempotent_for_existing_provider_activity() -> 
         assert activities[0].name == "Updated Run"
         assert len(raw_observations) == 1
         assert raw_observations[0].payload["activityName"] == "Updated Run"
+
+
+def test_garmin_daily_metric_and_sleep_sync_persists_canonical_records() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_daily_metrics_and_sleep(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+
+        metric = session.scalar(
+            select(DailyMetric).where(DailyMetric.metric_date == date(2026, 7, 5))
+        )
+        sleep = session.scalar(
+            select(SleepSession).where(
+                SleepSession.source_sleep_id == "sleep-2026-07-05"
+            )
+        )
+        raw_observations = session.scalars(select(RawObservation)).all()
+        session.refresh(sync_run)
+
+        assert fake_client.login_tokenstore == "serialized-tokenstore"
+        assert result.status is SyncStatus.SUCCEEDED
+        assert result.raw_payload_count == 2
+        assert result.normalized_record_count == 2
+        assert {record.record_type for record in result.normalized_records} == {
+            ConnectorRecordType.DAILY_METRIC,
+            ConnectorRecordType.SLEEP_SESSION,
+        }
+        assert metric is not None
+        assert metric.steps == 10000
+        assert metric.calories == 2400
+        assert metric.active_calories == 620
+        assert metric.resting_heart_rate == 53
+        assert metric.hrv_ms == Decimal("48.50")
+        assert metric.body_battery_latest == 61
+        assert sleep is not None
+        assert sleep.sleep_date == date(2026, 7, 5)
+        assert sleep.total_sleep_seconds == 27900
+        assert sleep.deep_sleep_seconds == 5100
+        assert sleep.sleep_score == 82
+        assert sleep.average_hrv_ms == Decimal("47.50")
+        assert {raw.provider_object_type for raw in raw_observations} == {
+            "daily_metric",
+            "sleep_session",
+        }
+        assert sync_run.status == "succeeded"
+        assert sync_run.records_seen == 2
+        assert sync_run.records_imported == 2
+
+
+def test_garmin_daily_metric_and_sleep_sync_is_idempotent() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+        request = BackfillSyncRequest(
+            user_id=user.id,
+            source_connection_id=connection.id,
+            sync_run_id=sync_run.id,
+            start_date=date(2026, 7, 5),
+            end_date=date(2026, 7, 5),
+        )
+
+        service.sync_backfill_daily_metrics_and_sleep(session, request)
+        service.sync_backfill_daily_metrics_and_sleep(session, request)
+
+        assert len(session.scalars(select(DailyMetric)).all()) == 1
+        assert len(session.scalars(select(SleepSession)).all()) == 1
+        assert len(session.scalars(select(RawObservation)).all()) == 2
 
 
 def test_garmin_activity_sync_rejects_missing_connection_or_sync_run() -> None:
