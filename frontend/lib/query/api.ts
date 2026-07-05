@@ -22,6 +22,7 @@ export async function apiFetchJson<T>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    credentials: "include",
     ...init,
     headers: {
       Accept: "application/json",
