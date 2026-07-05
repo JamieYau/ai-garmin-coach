@@ -25,6 +25,7 @@ class FakeRawGarminClient:
         self.kwargs = kwargs
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
         self.next_error: Exception | None = None
+        self.client = FakeTokenStore()
 
     def login(self, tokenstore: str | None = None) -> tuple[str | None, str | None]:
         self.calls.append(("login", (tokenstore,)))
@@ -89,6 +90,11 @@ class FakeRawGarminClient:
             raise error
 
 
+class FakeTokenStore:
+    def dumps(self) -> str:
+        return "serialized-tokenstore"
+
+
 def test_credentials_do_not_expose_password_in_repr() -> None:
     credentials = GarminCredentials(username="athlete@example.test", password="super-secret")
 
@@ -132,6 +138,16 @@ def test_login_returns_session_tokens() -> None:
     assert result.oauth2_token == "oauth2"
     assert result.has_session_tokens is True
     assert raw_client.calls == [("login", ("/tmp/garmin-tokenstore",))]
+
+
+def test_client_dumps_tokenstore() -> None:
+    raw_client = FakeRawGarminClient()
+    client = GarminClient(
+        GarminCredentials(username="athlete@example.test", password="super-secret"),
+        client_factory=lambda **_: raw_client,
+    )
+
+    assert client.dump_tokenstore() == "serialized-tokenstore"
 
 
 def test_client_wraps_profile_and_data_methods() -> None:

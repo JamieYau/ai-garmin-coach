@@ -16,6 +16,8 @@ from garminconnect import (  # type: ignore[import-untyped]
 class GarminRawClient(Protocol):
     """Subset of the garminconnect client used by this application."""
 
+    client: GarminTokenStore
+
     def login(self, tokenstore: str | None = None) -> tuple[str | None, str | None]: ...
 
     def get_full_name(self) -> str | None: ...
@@ -50,6 +52,10 @@ GarminClientFactory = Callable[..., GarminRawClient]
 T = TypeVar("T")
 
 
+class GarminTokenStore(Protocol):
+    def dumps(self) -> str: ...
+
+
 @dataclass(frozen=True)
 class GarminCredentials:
     username: str
@@ -82,6 +88,10 @@ class GarminRateLimitError(GarminClientError):
     error_code = "garmin_rate_limited"
 
 
+class GarminMfaRequiredError(GarminClientError):
+    error_code = "garmin_mfa_required"
+
+
 class GarminClient:
     """Narrow wrapper around the third-party Garmin Connect library."""
 
@@ -106,6 +116,9 @@ class GarminClient:
     def login(self, *, tokenstore: str | None = None) -> GarminLoginResult:
         oauth1_token, oauth2_token = self._call(self._client.login, tokenstore)
         return GarminLoginResult(oauth1_token=oauth1_token, oauth2_token=oauth2_token)
+
+    def dump_tokenstore(self) -> str:
+        return self._call(self._client.client.dumps)
 
     def get_full_name(self) -> str | None:
         return self._call(self._client.get_full_name)

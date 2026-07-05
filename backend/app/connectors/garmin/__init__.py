@@ -5,6 +5,7 @@ from app.connectors.garmin.client import (
     GarminConnectionError,
     GarminCredentials,
     GarminLoginResult,
+    GarminMfaRequiredError,
     GarminRateLimitError,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "GarminConnectionError",
     "GarminCredentials",
     "GarminLoginResult",
+    "GarminMfaRequiredError",
     "GarminRateLimitError",
 ]
