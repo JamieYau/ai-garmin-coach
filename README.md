@@ -105,5 +105,32 @@ at the same PostgreSQL database using the standard `postgresql://` URL form,
 then run `npm run auth:migrate` from `frontend/` to create Better Auth's
 tables.
 
+## API Authentication Boundary
+
+The frontend owns interactive authentication through Better Auth. FastAPI
+authorizes browser API calls by validating the signed
+`better-auth.session_token` cookie against Better Auth's shared PostgreSQL
+`session` table and joining it to the Better Auth `user` table.
+
+Local development flow:
+
+```bash
+cd frontend
+npm run auth:migrate
+npm run dev
+```
+
+```bash
+cd backend
+uv run uvicorn app.main:app --reload
+```
+
+Use the same `DATABASE_URL`/`BETTER_AUTH_DATABASE_URL` target and
+`BETTER_AUTH_SECRET` for both services. Protected FastAPI routes should depend
+on `get_current_app_user` or `get_current_user` from
+`backend/app/api/dependencies.py`; the dependency creates or updates the local
+`app_users` profile from the Better Auth user record and then scopes API work
+to that local user.
+
 ## Status
 MVP in development
