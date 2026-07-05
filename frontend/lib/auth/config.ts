@@ -1,11 +1,16 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { loadEnvConfig } from "@next/env";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 
-loadEnvConfig(process.cwd());
-loadEnvConfig(path.resolve(process.cwd(), ".."));
+const rootEnvDir = path.resolve(process.cwd(), "..");
+const envDir = existsSync(path.join(rootEnvDir, ".env"))
+  ? rootEnvDir
+  : process.cwd();
+
+loadEnvConfig(envDir, undefined, console, true);
 
 function getDatabaseUrl() {
   const databaseUrl =

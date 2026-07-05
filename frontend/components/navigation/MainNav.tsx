@@ -1,6 +1,13 @@
 "use client";
 
-import { Activity, BarChart3, Brain, Home } from "lucide-react";
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Brain,
+  Home,
+  UserCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,9 +22,24 @@ const navItems = [
   { href: "/dashboard#coach", label: "Coach", icon: Brain },
 ];
 
-export function MainNav() {
+type NavUser = {
+  name?: string | null;
+  email?: string | null;
+};
+
+export function MainNav({
+  initialUser,
+}: Readonly<{
+  initialUser?: NavUser | null;
+}>) {
   const pathname = usePathname();
-  const { data: session } = authClient.useSession();
+  const {
+    data: session,
+    isPending,
+    error,
+  } = authClient.useSession();
+  const user = session?.user ?? initialUser;
+  const userLabel = user?.name || user?.email || "Account";
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -55,8 +77,25 @@ export function MainNav() {
           })}
         </nav>
 
-        <div className="flex min-w-20 justify-end">
-          {session ? (
+        <div className="flex min-w-20 items-center justify-end gap-3">
+          {error ? (
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-destructive">
+              <AlertCircle className="size-4" aria-hidden="true" />
+              <span className="hidden lg:inline">Session unavailable</span>
+            </span>
+          ) : (
+            <span className="hidden max-w-44 items-center gap-2 truncate text-sm text-muted-foreground sm:inline-flex">
+              <UserCircle className="size-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">{userLabel}</span>
+            </span>
+          )}
+
+          {isPending && !user ? (
+            <span
+              className="size-9 animate-pulse rounded-md bg-muted"
+              aria-label="Checking session"
+            />
+          ) : user ? (
             <SignOutButton />
           ) : (
             <Link
