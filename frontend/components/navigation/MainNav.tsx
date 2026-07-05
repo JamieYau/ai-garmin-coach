@@ -33,11 +33,7 @@ export function MainNav({
   initialUser?: NavUser | null;
 }>) {
   const pathname = usePathname();
-  const {
-    data: session,
-    isPending,
-    error,
-  } = authClient.useSession();
+  const { data: session, isPending, error } = authClient.useSession();
   const user = session?.user ?? initialUser;
   const userLabel = user?.name || user?.email || "Account";
 

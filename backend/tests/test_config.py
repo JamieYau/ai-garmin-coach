@@ -17,6 +17,7 @@ def test_settings_load_from_environment(monkeypatch) -> None:
         "http://localhost:3000",
         "http://localhost:3001",
     ]
+    assert settings.backend_cors_allow_credentials is True
 
 
 def test_require_database_url_rejects_missing_value(monkeypatch) -> None:

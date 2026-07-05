@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     frontend_url: str = "http://localhost:3000"
-    backend_cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
+    backend_cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
+    backend_cors_allow_credentials: bool = True
     database_url: str | None = None
 
     better_auth_url: str = "http://localhost:3000"
