@@ -21,10 +21,10 @@ export default function Home() {
             AI Garmin Coach
           </Link>
           <Link
-            href="/dashboard"
+            href="/sign-in"
             className="inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Dashboard
+            Sign in
           </Link>
         </nav>
 
@@ -42,10 +42,10 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/dashboard"
+                href="/sign-in"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Open dashboard
+                Sign in
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
               <Link

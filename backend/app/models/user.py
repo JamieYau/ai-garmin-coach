@@ -67,3 +67,7 @@ class AppUser(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"AppUser(id={self.id!s}, better_auth_user_id={self.better_auth_user_id!r})"
+
+    def update_from_better_auth(self, *, email: str, display_name: str | None) -> None:
+        self.email = email
+        self.display_name = display_name

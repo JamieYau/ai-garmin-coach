@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { requireCurrentSession } from "@/lib/auth/server";
 
-export default function AuthenticatedAppLayout({
+export default async function AuthenticatedAppLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
-  return <AppShell>{children}</AppShell>;
+  const session = await requireCurrentSession();
+
+  return <AppShell user={session.user}>{children}</AppShell>;
 }
