@@ -150,4 +150,10 @@ describe("API error helpers", () => {
       "The dashboard data could not be loaded.",
     );
   });
+
+  it("maps network failures to an API availability message", () => {
+    expect(getApiErrorMessage(new TypeError("Failed to fetch"))).toBe(
+      "The API is unavailable. Start the backend and try again.",
+    );
+  });
 });

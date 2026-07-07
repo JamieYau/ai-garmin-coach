@@ -21,6 +21,10 @@ export function getApiErrorMessage(
   }
 
   if (error instanceof Error && error.message) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      return "The API is unavailable. Start the backend and try again.";
+    }
+
     return error.message;
   }
 
