@@ -276,3 +276,327 @@ def test_dashboard_overview_requires_authentication() -> None:
     response = client.get("/dashboard/overview")
 
     assert response.status_code == 401
+
+
+def test_dashboard_recent_activities_returns_limited_current_user_records() -> None:
+    client, db, user, other_user = _create_client()
+    today = datetime.now(UTC).date()
+    connection = SourceConnection(
+        user_id=user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    other_connection = SourceConnection(
+        user_id=other_user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    db.add_all([connection, other_connection])
+    db.flush()
+    db.add_all(
+        [
+            Activity(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                source_activity_id="activity-new",
+                activity_type="run",
+                name="Tempo",
+                activity_date=today,
+                started_at=datetime(2026, 7, 7, 8, 0, tzinfo=UTC),
+                duration_seconds=2400,
+                moving_duration_seconds=2300,
+                distance_meters=Decimal("8000.00"),
+                calories=620,
+                average_heart_rate=152,
+                training_load=Decimal("82.30"),
+                raw_data={},
+            ),
+            Activity(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                source_activity_id="activity-old",
+                activity_type="ride",
+                name="Endurance ride",
+                activity_date=today - timedelta(days=1),
+                started_at=datetime(2026, 7, 6, 8, 0, tzinfo=UTC),
+                duration_seconds=3600,
+                raw_data={},
+            ),
+            Activity(
+                user_id=other_user.id,
+                source_connection_id=other_connection.id,
+                source_activity_id="other-activity",
+                activity_type="run",
+                activity_date=today,
+                started_at=datetime(2026, 7, 7, 9, 0, tzinfo=UTC),
+                duration_seconds=9999,
+                raw_data={},
+            ),
+        ]
+    )
+    db.commit()
+
+    try:
+        response = client.get("/dashboard/activities/recent?limit=1")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    assert response.json()["activities"] == [
+        {
+            "id": response.json()["activities"][0]["id"],
+            "activity_type": "run",
+            "name": "Tempo",
+            "activity_date": today.isoformat(),
+            "started_at": "2026-07-07T08:00:00",
+            "duration_seconds": 2400,
+            "moving_duration_seconds": 2300,
+            "distance_meters": "8000.00",
+            "calories": 620,
+            "average_heart_rate": 152,
+            "training_load": "82.30",
+        }
+    ]
+
+
+def test_dashboard_sleep_trend_returns_windowed_current_user_records() -> None:
+    client, db, user, other_user = _create_client()
+    today = datetime.now(UTC).date()
+    connection = SourceConnection(
+        user_id=user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    other_connection = SourceConnection(
+        user_id=other_user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    db.add_all([connection, other_connection])
+    db.flush()
+    db.add_all(
+        [
+            SleepSession(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                source_sleep_id="sleep-yesterday",
+                sleep_date=today - timedelta(days=1),
+                started_at=datetime(2026, 7, 5, 22, 30, tzinfo=UTC),
+                ended_at=datetime(2026, 7, 6, 6, 30, tzinfo=UTC),
+                total_sleep_seconds=28800,
+                deep_sleep_seconds=4200,
+                rem_sleep_seconds=6200,
+                light_sleep_seconds=16800,
+                awake_seconds=1600,
+                sleep_score=81,
+                average_spo2=Decimal("97.20"),
+                average_hrv_ms=Decimal("58.40"),
+                average_respiration=Decimal("13.80"),
+                raw_data={},
+            ),
+            SleepSession(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                source_sleep_id="sleep-today",
+                sleep_date=today,
+                started_at=datetime(2026, 7, 6, 22, 15, tzinfo=UTC),
+                ended_at=datetime(2026, 7, 7, 6, 45, tzinfo=UTC),
+                total_sleep_seconds=30600,
+                sleep_score=88,
+                raw_data={},
+            ),
+            SleepSession(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                source_sleep_id="sleep-old",
+                sleep_date=today - timedelta(days=10),
+                started_at=datetime(2026, 6, 26, 22, 15, tzinfo=UTC),
+                ended_at=datetime(2026, 6, 27, 6, 45, tzinfo=UTC),
+                total_sleep_seconds=30600,
+                raw_data={},
+            ),
+            SleepSession(
+                user_id=other_user.id,
+                source_connection_id=other_connection.id,
+                source_sleep_id="other-sleep",
+                sleep_date=today,
+                started_at=datetime(2026, 7, 6, 22, 15, tzinfo=UTC),
+                ended_at=datetime(2026, 7, 7, 6, 45, tzinfo=UTC),
+                total_sleep_seconds=9999,
+                raw_data={},
+            ),
+        ]
+    )
+    db.commit()
+
+    try:
+        response = client.get("/dashboard/sleep/trend?days=3")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["days"] == 3
+    assert [item["sleep_date"] for item in body["sleep_sessions"]] == [
+        (today - timedelta(days=1)).isoformat(),
+        today.isoformat(),
+    ]
+    assert body["sleep_sessions"][0]["average_hrv_ms"] == "58.40"
+    assert body["sleep_sessions"][0]["average_spo2"] == "97.20"
+    assert body["sleep_sessions"][1]["total_sleep_seconds"] == 30600
+
+
+def test_dashboard_recovery_metrics_returns_windowed_current_user_records() -> None:
+    client, db, user, other_user = _create_client()
+    today = datetime.now(UTC).date()
+    connection = SourceConnection(
+        user_id=user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    other_connection = SourceConnection(
+        user_id=other_user.id,
+        source="garmin",
+        status="active",
+        connection_metadata={},
+    )
+    db.add_all([connection, other_connection])
+    db.flush()
+    db.add_all(
+        [
+            DailyMetric(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                metric_date=today - timedelta(days=1),
+                steps=9000,
+                active_seconds=3600,
+                highly_active_seconds=1200,
+                resting_heart_rate=50,
+                hrv_ms=Decimal("54.10"),
+                stress_average=Decimal("28.20"),
+                body_battery_min=32,
+                body_battery_max=92,
+                body_battery_latest=74,
+                raw_data={},
+            ),
+            DailyMetric(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                metric_date=today,
+                steps=11000,
+                active_seconds=4200,
+                resting_heart_rate=48,
+                raw_data={},
+            ),
+            DailyMetric(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                metric_date=today - timedelta(days=10),
+                steps=99999,
+                raw_data={},
+            ),
+            DailyMetric(
+                user_id=other_user.id,
+                source_connection_id=other_connection.id,
+                metric_date=today,
+                steps=99999,
+                raw_data={},
+            ),
+        ]
+    )
+    db.commit()
+
+    try:
+        response = client.get("/dashboard/recovery/metrics?days=3")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["days"] == 3
+    assert [item["metric_date"] for item in body["metrics"]] == [
+        (today - timedelta(days=1)).isoformat(),
+        today.isoformat(),
+    ]
+    assert body["metrics"][0] == {
+        "metric_date": (today - timedelta(days=1)).isoformat(),
+        "steps": 9000,
+        "active_seconds": 3600,
+        "highly_active_seconds": 1200,
+        "resting_heart_rate": 50,
+        "hrv_ms": "54.10",
+        "stress_average": "28.20",
+        "body_battery_min": 32,
+        "body_battery_max": 92,
+        "body_battery_latest": 74,
+    }
+    assert body["metrics"][1]["steps"] == 11000
+
+
+def test_dashboard_latest_coach_insight_returns_latest_current_user_detail() -> None:
+    client, db, user, other_user = _create_client()
+    today = datetime.now(UTC).date()
+    db.add_all(
+        [
+            CoachInsight(
+                user_id=user.id,
+                insight_date=today - timedelta(days=1),
+                insight_type="daily",
+                title="Older insight",
+                summary="Older summary.",
+                output={"readiness": "moderate"},
+                generated_at=datetime(2026, 7, 6, 10, 30, tzinfo=UTC),
+            ),
+            CoachInsight(
+                user_id=user.id,
+                insight_date=today,
+                insight_type="daily",
+                title="Latest insight",
+                summary="Recovery supports aerobic work.",
+                recommendation="Keep quality controlled.",
+                schema_version="v1",
+                model_provider="local",
+                model_name="deterministic-coach",
+                prompt_version="dashboard-v1",
+                output={"readiness": "good", "risk_flags": []},
+                generated_at=datetime(2026, 7, 7, 10, 30, tzinfo=UTC),
+            ),
+            CoachInsight(
+                user_id=other_user.id,
+                insight_date=today,
+                insight_type="daily",
+                title="Other user's insight",
+                summary="Should not leak.",
+                output={"readiness": "excellent"},
+                generated_at=datetime(2026, 7, 7, 11, 30, tzinfo=UTC),
+            ),
+        ]
+    )
+    db.commit()
+
+    try:
+        response = client.get("/dashboard/coach/latest")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "id": body["id"],
+        "insight_date": today.isoformat(),
+        "insight_type": "daily",
+        "title": "Latest insight",
+        "summary": "Recovery supports aerobic work.",
+        "recommendation": "Keep quality controlled.",
+        "generated_at": "2026-07-07T10:30:00",
+        "schema_version": "v1",
+        "model_provider": "local",
+        "model_name": "deterministic-coach",
+        "prompt_version": "dashboard-v1",
+        "output": {"readiness": "good", "risk_flags": []},
+    }
