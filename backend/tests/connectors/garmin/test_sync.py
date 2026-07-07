@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -10,8 +10,17 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.connectors.garmin.sync import GarminActivitySyncService
-from app.core.security import encrypt_json_payload
+from app.connectors.garmin.client import (
+    GarminAuthenticationError,
+    GarminConnectionError,
+    GarminRateLimitError,
+)
+from app.connectors.garmin.sync import (
+    MAX_BACKFILL_WINDOW_DAYS,
+    MAX_INCREMENTAL_WINDOW_DAYS,
+    GarminActivitySyncService,
+)
+from app.core.security import decrypt_json_payload, encrypt_json_payload
 from app.db.models import Base
 from app.models import (
     Activity,
@@ -23,7 +32,12 @@ from app.models import (
     SourceConnection,
     SyncRun,
 )
-from app.schemas.connectors import BackfillSyncRequest, ConnectorRecordType, SyncStatus
+from app.schemas.connectors import (
+    BackfillSyncRequest,
+    ConnectorRecordType,
+    IncrementalSyncRequest,
+    SyncStatus,
+)
 
 
 class FakeGarminActivityClient:
@@ -31,10 +45,18 @@ class FakeGarminActivityClient:
         self.activities = activities
         self.login_tokenstore: str | None = None
         self.requested_window: tuple[date, date | None, str | None] | None = None
+        self.login_error: Exception | None = None
+        self.activity_error: Exception | None = None
+        self.tokenstore = "refreshed-tokenstore"
 
     def login(self, *, tokenstore: str | None = None) -> object:
         self.login_tokenstore = tokenstore
+        if self.login_error is not None:
+            raise self.login_error
         return object()
+
+    def dump_tokenstore(self) -> str:
+        return self.tokenstore
 
     def get_activities_by_date(
         self,
@@ -44,6 +66,8 @@ class FakeGarminActivityClient:
         activity_type: str | None = None,
     ) -> list[dict[str, Any]]:
         self.requested_window = (start_date, end_date, activity_type)
+        if self.activity_error is not None:
+            raise self.activity_error
         return self.activities
 
     def get_daily_summary(self, day: date) -> dict[str, Any]:
@@ -213,6 +237,10 @@ def test_garmin_activity_sync_fetches_and_persists_activity_records() -> None:
         assert sync_run.status == "succeeded"
         assert sync_run.records_seen == 1
         assert sync_run.records_imported == 1
+        assert decrypt_json_payload(
+            connection.connection_metadata["session_material"],
+            "test-secret",
+        ) == {"tokenstore": "refreshed-tokenstore"}
 
 
 def test_garmin_activity_sync_is_idempotent_for_existing_provider_activity() -> None:
@@ -417,8 +445,158 @@ def test_garmin_activity_sync_rejects_missing_connection_or_sync_run() -> None:
             end_date=date(2026, 7, 5),
         )
 
-        with pytest.raises(ValueError, match="source connection"):
+        with pytest.raises(ValueError, match="Sync run"):
             service.sync_backfill_activities(session, missing_connection_request)
 
         with pytest.raises(ValueError, match="Sync run"):
             service.sync_backfill_activities(session, missing_sync_run_request)
+
+
+def test_garmin_backfill_window_limit_marks_sync_failed() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: FakeGarminActivityClient([]),
+        )
+
+        result = service.sync_backfill_activities(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 1, 1),
+                end_date=date(2026, 1, 1) + timedelta(days=MAX_BACKFILL_WINDOW_DAYS),
+            ),
+        )
+        session.refresh(sync_run)
+
+        assert result.status is SyncStatus.FAILED
+        assert result.error_code == "garmin_backfill_window_too_large"
+        assert sync_run.status == "failed"
+        assert sync_run.records_seen == 0
+        assert sync_run.records_imported == 0
+
+
+def test_garmin_incremental_activity_sync_caps_window() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_incremental_activities(
+            session,
+            IncrementalSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                since=datetime(2026, 6, 1, tzinfo=UTC),
+                until=datetime(2026, 7, 5, tzinfo=UTC),
+            ),
+        )
+
+        assert result.status is SyncStatus.SUCCEEDED
+        assert fake_client.requested_window == (
+            date(2026, 7, 5) - timedelta(days=MAX_INCREMENTAL_WINDOW_DAYS - 1),
+            date(2026, 7, 5),
+            None,
+        )
+
+
+def test_garmin_sync_rate_limit_failure_is_retryable_and_sanitized() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        fake_client.activity_error = GarminRateLimitError(
+            "token serialized-tokenstore and password garmin-password leaked upstream"
+        )
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_activities(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+        session.refresh(sync_run)
+        session.refresh(connection)
+
+        assert result.status is SyncStatus.FAILED
+        assert result.error_code == "garmin_rate_limited_retryable"
+        assert result.error_message == "Garmin sync failed due to a temporary provider error."
+        assert "serialized-tokenstore" not in result.model_dump_json()
+        assert "garmin-password" not in result.model_dump_json()
+        assert sync_run.status == "failed"
+        assert sync_run.error_message == result.error_message
+        assert connection.status == "active"
+
+
+def test_garmin_auth_failure_marks_connection_reauth_required_without_secret_leak() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        fake_client.login_error = GarminAuthenticationError(
+            "token serialized-tokenstore and password garmin-password expired"
+        )
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_biometrics(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+        session.refresh(sync_run)
+        session.refresh(connection)
+
+        assert result.status is SyncStatus.FAILED
+        assert result.error_code == "garmin_reauth_required"
+        assert result.error_message == "Garmin sync requires reconnection."
+        assert "serialized-tokenstore" not in result.model_dump_json()
+        assert "garmin-password" not in result.model_dump_json()
+        assert sync_run.status == "failed"
+        assert connection.status == "reauth_required"
+
+
+def test_garmin_connection_failure_is_retryable() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        fake_client.login_error = GarminConnectionError("provider unavailable")
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_daily_metrics_and_sleep(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+
+        assert result.status is SyncStatus.FAILED
+        assert result.error_code == "garmin_connection_retryable"
+        assert result.error_message == "Garmin sync failed due to a temporary provider error."

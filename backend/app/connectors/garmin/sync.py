@@ -8,7 +8,14 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.connectors.garmin.client import GarminClient, GarminCredentials
+from app.connectors.garmin.client import (
+    GarminAuthenticationError,
+    GarminClient,
+    GarminClientError,
+    GarminConnectionError,
+    GarminCredentials,
+    GarminRateLimitError,
+)
 from app.connectors.garmin.mappers import (
     GarminActivityMapper,
     GarminBiometricMapper,
@@ -20,7 +27,7 @@ from app.connectors.garmin.mappers import (
     sleep_session_mapper,
 )
 from app.connectors.garmin.metadata import GARMIN_SOURCE_METADATA
-from app.core.security import decrypt_json_payload
+from app.core.security import decrypt_json_payload, encrypt_json_payload
 from app.models import (
     Activity,
     BiometricSample,
@@ -33,15 +40,30 @@ from app.models import (
 from app.schemas.connectors import (
     BackfillSyncRequest,
     ConnectorRecordType,
+    IncrementalSyncRequest,
     NormalizedRecord,
     ProviderPayload,
     SyncResult,
     SyncStatus,
 )
+from app.services.sync_runs import (
+    mark_sync_run_failed,
+    mark_sync_run_running,
+    mark_sync_run_succeeded,
+)
+
+DEFAULT_INCREMENTAL_WINDOW_DAYS = 7
+MAX_INCREMENTAL_WINDOW_DAYS = 14
+MAX_BACKFILL_WINDOW_DAYS = 31
+SANITIZED_RETRYABLE_ERROR_MESSAGE = "Garmin sync failed due to a temporary provider error."
+SANITIZED_REAUTH_ERROR_MESSAGE = "Garmin sync requires reconnection."
+SANITIZED_NON_RETRYABLE_ERROR_MESSAGE = "Garmin sync failed due to a non-retryable error."
 
 
 class GarminActivityClient(Protocol):
     def login(self, *, tokenstore: str | None = None) -> object: ...
+
+    def dump_tokenstore(self) -> str: ...
 
     def get_activities_by_date(
         self,
@@ -88,40 +110,46 @@ class GarminActivitySyncService:
         self._sleep_mapper = sleep_mapper
         self._biometric_mapper = biometric_mapper
 
+    def sync_incremental_activities(
+        self,
+        db: Session,
+        request: IncrementalSyncRequest,
+    ) -> SyncResult:
+        return self.sync_backfill_activities(db, self._incremental_to_backfill_request(request))
+
     def sync_backfill_activities(
         self,
         db: Session,
         request: BackfillSyncRequest,
     ) -> SyncResult:
-        source_connection = self._load_source_connection(db, request)
         sync_run = self._load_sync_run(db, request)
+        window_error = self._validate_backfill_window(request, sync_run)
+        if window_error is not None:
+            db.commit()
+            return window_error
+        source_connection = self._load_source_connection(db, request)
         tokenstore = self._load_tokenstore(source_connection)
-        raw_activities = self._fetch_activities(source_connection, request, tokenstore)
         raw_payloads: list[ProviderPayload] = []
         normalized_records: list[NormalizedRecord] = []
-        sync_run.status = "running"
-        sync_run.started_at = datetime.now(UTC)
-        sync_run.window_start = datetime.combine(
-            request.start_date,
-            datetime.min.time(),
-            tzinfo=UTC,
+        mark_sync_run_running(sync_run, **self._sync_window_datetimes(request))
+
+        try:
+            raw_activities = self._fetch_activities(source_connection, request, tokenstore)
+            for raw_activity in raw_activities:
+                result = self._mapper.normalize_activity(raw_activity)
+                raw_payloads.append(result.raw_payload)
+                normalized_records.extend(result.records)
+                self._upsert_raw_observation(db, request, result.raw_payload)
+                for record in result.records:
+                    self._upsert_activity(db, request, record)
+        except GarminClientError as exc:
+            return self._fail_sync_result(db, sync_run, source_connection, request, exc)
+
+        mark_sync_run_succeeded(
+            sync_run,
+            records_seen=len(raw_payloads),
+            records_imported=len(normalized_records),
         )
-        sync_run.window_end = datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC)
-
-        for raw_activity in raw_activities:
-            result = self._mapper.normalize_activity(raw_activity)
-            raw_payloads.append(result.raw_payload)
-            normalized_records.extend(result.records)
-            self._upsert_raw_observation(db, request, result.raw_payload)
-            for record in result.records:
-                self._upsert_activity(db, request, record)
-
-        sync_run.status = "succeeded"
-        sync_run.completed_at = datetime.now(UTC)
-        sync_run.records_seen = len(raw_payloads)
-        sync_run.records_imported = len(normalized_records)
-        sync_run.error_code = None
-        sync_run.error_message = None
         db.commit()
 
         return SyncResult(
@@ -131,53 +159,59 @@ class GarminActivitySyncService:
             raw_payloads=raw_payloads,
             normalized_records=normalized_records,
         )
+
+    def sync_incremental_biometrics(
+        self,
+        db: Session,
+        request: IncrementalSyncRequest,
+    ) -> SyncResult:
+        return self.sync_backfill_biometrics(db, self._incremental_to_backfill_request(request))
 
     def sync_backfill_biometrics(
         self,
         db: Session,
         request: BackfillSyncRequest,
     ) -> SyncResult:
-        source_connection = self._load_source_connection(db, request)
         sync_run = self._load_sync_run(db, request)
+        window_error = self._validate_backfill_window(request, sync_run)
+        if window_error is not None:
+            db.commit()
+            return window_error
+        source_connection = self._load_source_connection(db, request)
         tokenstore = self._load_tokenstore(source_connection)
-        client = self._authenticated_client(source_connection, tokenstore)
         raw_payloads: list[ProviderPayload] = []
         normalized_records: list[NormalizedRecord] = []
-        sync_run.status = "running"
-        sync_run.started_at = datetime.now(UTC)
-        sync_run.window_start = datetime.combine(
-            request.start_date,
-            datetime.min.time(),
-            tzinfo=UTC,
-        )
-        sync_run.window_end = datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC)
+        mark_sync_run_running(sync_run, **self._sync_window_datetimes(request))
 
-        for day in self._date_range(request.start_date, request.end_date):
-            heart_rate_result = self._biometric_mapper.normalize_heart_rates(
-                client.get_heart_rates(day),
-                day,
-            )
-            raw_payloads.append(heart_rate_result.raw_payload)
-            normalized_records.extend(heart_rate_result.records)
-            self._upsert_raw_observation(db, request, heart_rate_result.raw_payload)
-            for record in heart_rate_result.records:
-                self._upsert_biometric_sample(db, request, record)
-
-            hrv_data = client.get_hrv_data(day)
-            if hrv_data is not None:
-                hrv_result = self._biometric_mapper.normalize_hrv(hrv_data, day)
-                raw_payloads.append(hrv_result.raw_payload)
-                normalized_records.extend(hrv_result.records)
-                self._upsert_raw_observation(db, request, hrv_result.raw_payload)
-                for record in hrv_result.records:
+        try:
+            client = self._authenticated_client(source_connection, tokenstore)
+            for day in self._date_range(request.start_date, request.end_date):
+                heart_rate_result = self._biometric_mapper.normalize_heart_rates(
+                    client.get_heart_rates(day),
+                    day,
+                )
+                raw_payloads.append(heart_rate_result.raw_payload)
+                normalized_records.extend(heart_rate_result.records)
+                self._upsert_raw_observation(db, request, heart_rate_result.raw_payload)
+                for record in heart_rate_result.records:
                     self._upsert_biometric_sample(db, request, record)
 
-        sync_run.status = "succeeded"
-        sync_run.completed_at = datetime.now(UTC)
-        sync_run.records_seen = len(raw_payloads)
-        sync_run.records_imported = len(normalized_records)
-        sync_run.error_code = None
-        sync_run.error_message = None
+                hrv_data = client.get_hrv_data(day)
+                if hrv_data is not None:
+                    hrv_result = self._biometric_mapper.normalize_hrv(hrv_data, day)
+                    raw_payloads.append(hrv_result.raw_payload)
+                    normalized_records.extend(hrv_result.records)
+                    self._upsert_raw_observation(db, request, hrv_result.raw_payload)
+                    for record in hrv_result.records:
+                        self._upsert_biometric_sample(db, request, record)
+        except GarminClientError as exc:
+            return self._fail_sync_result(db, sync_run, source_connection, request, exc)
+
+        mark_sync_run_succeeded(
+            sync_run,
+            records_seen=len(raw_payloads),
+            records_imported=len(normalized_records),
+        )
         db.commit()
 
         return SyncResult(
@@ -186,6 +220,16 @@ class GarminActivitySyncService:
             status=SyncStatus.SUCCEEDED,
             raw_payloads=raw_payloads,
             normalized_records=normalized_records,
+        )
+
+    def sync_incremental_daily_metrics_and_sleep(
+        self,
+        db: Session,
+        request: IncrementalSyncRequest,
+    ) -> SyncResult:
+        return self.sync_backfill_daily_metrics_and_sleep(
+            db,
+            self._incremental_to_backfill_request(request),
         )
 
     def sync_backfill_daily_metrics_and_sleep(
@@ -193,42 +237,45 @@ class GarminActivitySyncService:
         db: Session,
         request: BackfillSyncRequest,
     ) -> SyncResult:
-        source_connection = self._load_source_connection(db, request)
         sync_run = self._load_sync_run(db, request)
+        window_error = self._validate_backfill_window(request, sync_run)
+        if window_error is not None:
+            db.commit()
+            return window_error
+        source_connection = self._load_source_connection(db, request)
         tokenstore = self._load_tokenstore(source_connection)
-        client = self._authenticated_client(source_connection, tokenstore)
         raw_payloads: list[ProviderPayload] = []
         normalized_records: list[NormalizedRecord] = []
-        sync_run.status = "running"
-        sync_run.started_at = datetime.now(UTC)
-        sync_run.window_start = datetime.combine(
-            request.start_date,
-            datetime.min.time(),
-            tzinfo=UTC,
+        mark_sync_run_running(sync_run, **self._sync_window_datetimes(request))
+
+        try:
+            client = self._authenticated_client(source_connection, tokenstore)
+            for day in self._date_range(request.start_date, request.end_date):
+                daily_result = self._daily_mapper.normalize_daily_metric(
+                    client.get_daily_summary(day)
+                )
+                raw_payloads.append(daily_result.raw_payload)
+                normalized_records.extend(daily_result.records)
+                self._upsert_raw_observation(db, request, daily_result.raw_payload)
+                for record in daily_result.records:
+                    self._upsert_daily_metric(db, request, record)
+
+                sleep_result = self._sleep_mapper.normalize_sleep_session(
+                    client.get_sleep_data(day)
+                )
+                raw_payloads.append(sleep_result.raw_payload)
+                normalized_records.extend(sleep_result.records)
+                self._upsert_raw_observation(db, request, sleep_result.raw_payload)
+                for record in sleep_result.records:
+                    self._upsert_sleep_session(db, request, record)
+        except GarminClientError as exc:
+            return self._fail_sync_result(db, sync_run, source_connection, request, exc)
+
+        mark_sync_run_succeeded(
+            sync_run,
+            records_seen=len(raw_payloads),
+            records_imported=len(normalized_records),
         )
-        sync_run.window_end = datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC)
-
-        for day in self._date_range(request.start_date, request.end_date):
-            daily_result = self._daily_mapper.normalize_daily_metric(client.get_daily_summary(day))
-            raw_payloads.append(daily_result.raw_payload)
-            normalized_records.extend(daily_result.records)
-            self._upsert_raw_observation(db, request, daily_result.raw_payload)
-            for record in daily_result.records:
-                self._upsert_daily_metric(db, request, record)
-
-            sleep_result = self._sleep_mapper.normalize_sleep_session(client.get_sleep_data(day))
-            raw_payloads.append(sleep_result.raw_payload)
-            normalized_records.extend(sleep_result.records)
-            self._upsert_raw_observation(db, request, sleep_result.raw_payload)
-            for record in sleep_result.records:
-                self._upsert_sleep_session(db, request, record)
-
-        sync_run.status = "succeeded"
-        sync_run.completed_at = datetime.now(UTC)
-        sync_run.records_seen = len(raw_payloads)
-        sync_run.records_imported = len(normalized_records)
-        sync_run.error_code = None
-        sync_run.error_message = None
         db.commit()
 
         return SyncResult(
@@ -258,7 +305,22 @@ class GarminActivitySyncService:
     ) -> GarminActivityClient:
         client = self._client_builder(source_connection.connection_metadata.get("region") == "cn")
         client.login(tokenstore=tokenstore)
+        self._refresh_stored_tokenstore(source_connection, client)
         return client
+
+    def _refresh_stored_tokenstore(
+        self,
+        source_connection: SourceConnection,
+        client: GarminActivityClient,
+    ) -> None:
+        tokenstore = client.dump_tokenstore()
+        metadata = dict(source_connection.connection_metadata)
+        metadata["session_material"] = encrypt_json_payload(
+            {"tokenstore": tokenstore},
+            self._encryption_secret,
+        )
+        metadata["session_material_type"] = "garminconnect_tokenstore"
+        source_connection.connection_metadata = metadata
 
     def _load_source_connection(
         self,
@@ -297,6 +359,105 @@ class GarminActivitySyncService:
         if not isinstance(tokenstore, str) or not tokenstore:
             raise ValueError("Garmin session material is missing tokenstore data")
         return tokenstore
+
+    def _incremental_to_backfill_request(
+        self,
+        request: IncrementalSyncRequest,
+    ) -> BackfillSyncRequest:
+        until = request.until or datetime.now(UTC)
+        since = request.since or until - timedelta(days=DEFAULT_INCREMENTAL_WINDOW_DAYS - 1)
+        earliest_allowed = until - timedelta(days=MAX_INCREMENTAL_WINDOW_DAYS - 1)
+        if since < earliest_allowed:
+            since = earliest_allowed
+        return BackfillSyncRequest(
+            user_id=request.user_id,
+            source_connection_id=request.source_connection_id,
+            sync_run_id=request.sync_run_id,
+            start_date=since.date(),
+            end_date=until.date(),
+        )
+
+    def _validate_backfill_window(
+        self,
+        request: BackfillSyncRequest,
+        sync_run: SyncRun,
+    ) -> SyncResult | None:
+        requested_days = (request.end_date - request.start_date).days + 1
+        if requested_days <= MAX_BACKFILL_WINDOW_DAYS:
+            return None
+
+        error_code = "garmin_backfill_window_too_large"
+        error_message = f"Garmin backfill windows are limited to {MAX_BACKFILL_WINDOW_DAYS} days."
+        mark_sync_run_failed(sync_run, error_code=error_code, error_message=error_message)
+        sync_run.window_start = datetime.combine(
+            request.start_date,
+            datetime.min.time(),
+            tzinfo=UTC,
+        )
+        sync_run.window_end = datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC)
+        return SyncResult(
+            source_connection_id=request.source_connection_id,
+            sync_run_id=request.sync_run_id,
+            status=SyncStatus.FAILED,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def _fail_sync_result(
+        self,
+        db: Session,
+        sync_run: SyncRun,
+        source_connection: SourceConnection,
+        request: BackfillSyncRequest,
+        error: GarminClientError,
+    ) -> SyncResult:
+        error_code, error_message, requires_reauth = self._classify_garmin_error(error)
+        if requires_reauth:
+            source_connection.status = "reauth_required"
+        mark_sync_run_failed(sync_run, error_code=error_code, error_message=error_message)
+        db.commit()
+        return SyncResult(
+            source_connection_id=request.source_connection_id,
+            sync_run_id=request.sync_run_id,
+            status=SyncStatus.FAILED,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def _classify_garmin_error(self, error: GarminClientError) -> tuple[str, str, bool]:
+        if isinstance(error, GarminAuthenticationError):
+            return (
+                "garmin_reauth_required",
+                SANITIZED_REAUTH_ERROR_MESSAGE,
+                True,
+            )
+        if isinstance(error, GarminRateLimitError):
+            return (
+                "garmin_rate_limited_retryable",
+                SANITIZED_RETRYABLE_ERROR_MESSAGE,
+                False,
+            )
+        if isinstance(error, GarminConnectionError):
+            return (
+                "garmin_connection_retryable",
+                SANITIZED_RETRYABLE_ERROR_MESSAGE,
+                False,
+            )
+        return (
+            "garmin_sync_failed_non_retryable",
+            SANITIZED_NON_RETRYABLE_ERROR_MESSAGE,
+            False,
+        )
+
+    def _sync_window_datetimes(self, request: BackfillSyncRequest) -> dict[str, datetime]:
+        return {
+            "window_start": datetime.combine(
+                request.start_date,
+                datetime.min.time(),
+                tzinfo=UTC,
+            ),
+            "window_end": datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC),
+        }
 
     def _upsert_raw_observation(
         self,
