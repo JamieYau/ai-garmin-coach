@@ -7,6 +7,7 @@ import pytest
 
 from app.connectors.garmin.mappers import (
     GarminActivityMapper,
+    GarminBiometricMapper,
     GarminDailyMetricMapper,
     GarminSleepSessionMapper,
 )
@@ -166,3 +167,64 @@ def test_garmin_daily_and_sleep_mappers_reject_missing_dates() -> None:
 
     with pytest.raises(ValueError, match="sleep payload"):
         GarminSleepSessionMapper().normalize_sleep_session({"dailySleepDTO": {"id": 1}})
+
+
+def test_garmin_biometric_mapper_normalizes_heart_rate_samples() -> None:
+    mapper = GarminBiometricMapper()
+
+    result = mapper.normalize_heart_rates(
+        {
+            "calendarDate": "2026-07-05",
+            "heartRateValues": [
+                ["2026-07-05T07:30:00Z", 61],
+                [30, 63],
+                {"timestamp": "2026-07-05T07:31:00Z", "value": 64},
+            ],
+        },
+        date(2026, 7, 5),
+    )
+
+    assert result.raw_payload.object_type == "heart_rate"
+    assert result.raw_payload.object_id == "2026-07-05"
+    assert len(result.records) == 3
+    first = result.records[0]
+    assert first.record_type is ConnectorRecordType.BIOMETRIC_SAMPLE
+    assert first.data["sample_type"] == "heart_rate"
+    assert first.data["sampled_at"] == datetime(2026, 7, 5, 7, 30, tzinfo=UTC)
+    assert first.data["value"] == Decimal("61")
+    assert first.data["unit"] == "bpm"
+    assert result.records[1].data["sampled_at"] == datetime(2026, 7, 5, 0, 0, 30, tzinfo=UTC)
+
+
+def test_garmin_biometric_mapper_normalizes_hrv_readings_and_summary() -> None:
+    mapper = GarminBiometricMapper()
+
+    reading_result = mapper.normalize_hrv(
+        {
+            "calendarDate": "2026-07-05",
+            "hrvReadings": [
+                {"readingTimeGmt": "2026-07-05T06:30:00Z", "hrvValue": 48.2},
+                {"readingTimeGmt": "2026-07-05T06:35:00Z", "value": 49.1},
+            ],
+        },
+        date(2026, 7, 5),
+    )
+    summary_result = mapper.normalize_hrv(
+        {"calendarDate": "2026-07-05", "lastNightAvg": 47.8},
+        date(2026, 7, 5),
+    )
+
+    assert reading_result.raw_payload.object_type == "hrv"
+    assert len(reading_result.records) == 2
+    assert reading_result.records[0].data["sample_type"] == "hrv"
+    assert reading_result.records[0].data["value"] == Decimal("48.2")
+    assert reading_result.records[0].data["unit"] == "ms"
+    assert summary_result.records[0].data["sampled_at"] == datetime(
+        2026,
+        7,
+        5,
+        7,
+        0,
+        tzinfo=UTC,
+    )
+    assert summary_result.records[0].data["aggregation_window_seconds"] == 86_400

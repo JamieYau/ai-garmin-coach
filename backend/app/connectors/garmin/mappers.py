@@ -380,6 +380,249 @@ class GarminSleepSessionMapper:
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+class GarminBiometricMapper:
+    def normalize_heart_rates(
+        self,
+        heart_rates: dict[str, Any],
+        sample_date: date,
+    ) -> NormalizationResult:
+        payload = self.to_provider_payload("heart_rate", sample_date, heart_rates)
+        return NormalizationResult(
+            raw_payload=payload,
+            records=[
+                NormalizedRecord(
+                    record_type=ConnectorRecordType.BIOMETRIC_SAMPLE,
+                    source_record_id=sample["source_sample_id"],
+                    data=sample,
+                )
+                for sample in self.to_heart_rate_samples(payload, sample_date)
+            ],
+        )
+
+    def normalize_hrv(
+        self,
+        hrv_data: dict[str, Any],
+        sample_date: date,
+    ) -> NormalizationResult:
+        payload = self.to_provider_payload("hrv", sample_date, hrv_data)
+        return NormalizationResult(
+            raw_payload=payload,
+            records=[
+                NormalizedRecord(
+                    record_type=ConnectorRecordType.BIOMETRIC_SAMPLE,
+                    source_record_id=sample["source_sample_id"],
+                    data=sample,
+                )
+                for sample in self.to_hrv_samples(payload, sample_date)
+            ],
+        )
+
+    def to_provider_payload(
+        self,
+        object_type: str,
+        sample_date: date,
+        payload: dict[str, Any],
+    ) -> ProviderPayload:
+        return ProviderPayload(
+            object_type=object_type,
+            object_id=sample_date.isoformat(),
+            observed_at=datetime.combine(sample_date, datetime.max.time(), tzinfo=UTC),
+            payload=payload,
+            payload_hash=self._payload_hash(payload),
+        )
+
+    def to_heart_rate_samples(
+        self,
+        payload: ProviderPayload,
+        sample_date: date,
+    ) -> list[dict[str, Any]]:
+        values = payload.payload.get("heartRateValues") or payload.payload.get("heartRates") or []
+        if not isinstance(values, list):
+            return []
+
+        samples: list[dict[str, Any]] = []
+        for index, value in enumerate(values):
+            parsed = self._parse_heart_rate_value(value, sample_date, index)
+            if parsed is not None:
+                sampled_at, heart_rate = parsed
+                samples.append(
+                    {
+                        "source_sample_id": f"garmin-heart-rate-{sampled_at.isoformat()}",
+                        "sample_type": "heart_rate",
+                        "sampled_at": sampled_at,
+                        "value": Decimal(str(heart_rate)),
+                        "unit": "bpm",
+                        "aggregation_window_seconds": None,
+                        "raw_data": payload.payload,
+                    }
+                )
+        return samples
+
+    def to_hrv_samples(
+        self,
+        payload: ProviderPayload,
+        sample_date: date,
+    ) -> list[dict[str, Any]]:
+        readings = payload.payload.get("hrvReadings")
+        if isinstance(readings, list):
+            samples = [
+                sample
+                for index, reading in enumerate(readings)
+                if (
+                    sample := self._hrv_sample_from_reading(
+                        reading,
+                        sample_date,
+                        payload.payload,
+                        index,
+                    )
+                )
+                is not None
+            ]
+            if samples:
+                return samples
+
+        summary = payload.payload.get("hrvSummary")
+        if isinstance(summary, dict):
+            summary_sample = self._hrv_sample_from_summary(summary, sample_date, payload.payload)
+            return [summary_sample] if summary_sample is not None else []
+
+        summary_sample = self._hrv_sample_from_summary(
+            payload.payload,
+            sample_date,
+            payload.payload,
+        )
+        return [summary_sample] if summary_sample is not None else []
+
+    def _parse_heart_rate_value(
+        self,
+        value: Any,
+        sample_date: date,
+        index: int,
+    ) -> tuple[datetime, int] | None:
+        if isinstance(value, list | tuple) and len(value) >= 2:
+            sampled_at = self._parse_sample_time(value[0], sample_date)
+            heart_rate = self._optional_int(value[1])
+        elif isinstance(value, dict):
+            sampled_at = self._parse_sample_time(
+                value.get("timestamp")
+                or value.get("sampleTime")
+                or value.get("startTimeGmt")
+                or value.get("startTimeGMT")
+                or index,
+                sample_date,
+            )
+            heart_rate = self._optional_int(
+                value.get("heartRate") or value.get("value") or value.get("bpm")
+            )
+        else:
+            return None
+
+        if heart_rate is None:
+            return None
+        return sampled_at, heart_rate
+
+    def _hrv_sample_from_reading(
+        self,
+        reading: Any,
+        sample_date: date,
+        raw_data: dict[str, Any],
+        index: int,
+    ) -> dict[str, Any] | None:
+        if not isinstance(reading, dict):
+            return None
+        sampled_at = self._parse_sample_time(
+            reading.get("readingTimeGmt")
+            or reading.get("readingTimeGMT")
+            or reading.get("startTimeGmt")
+            or reading.get("startTimeGMT")
+            or reading.get("timestamp")
+            or index,
+            sample_date,
+        )
+        value = self._optional_decimal(
+            reading.get("hrvValue")
+            or reading.get("value")
+            or reading.get("lastNightAvg")
+            or reading.get("weeklyAvg")
+        )
+        if value is None:
+            return None
+        return {
+            "source_sample_id": f"garmin-hrv-{sampled_at.isoformat()}",
+            "sample_type": "hrv",
+            "sampled_at": sampled_at,
+            "value": value,
+            "unit": "ms",
+            "aggregation_window_seconds": None,
+            "raw_data": raw_data,
+        }
+
+    def _hrv_sample_from_summary(
+        self,
+        summary: dict[str, Any],
+        sample_date: date,
+        raw_data: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        value = self._optional_decimal(
+            summary.get("lastNightAvg")
+            or summary.get("weeklyAvg")
+            or summary.get("hrvValue")
+            or summary.get("value")
+        )
+        if value is None:
+            return None
+        sampled_at = self._parse_sample_time(
+            summary.get("calendarDate") or summary.get("date") or "07:00",
+            sample_date,
+        )
+        return {
+            "source_sample_id": f"garmin-hrv-{sampled_at.isoformat()}",
+            "sample_type": "hrv",
+            "sampled_at": sampled_at,
+            "value": value,
+            "unit": "ms",
+            "aggregation_window_seconds": 86_400,
+            "raw_data": raw_data,
+        }
+
+    def _parse_sample_time(self, value: Any, sample_date: date) -> datetime:
+        if isinstance(value, datetime):
+            parsed = value
+        elif isinstance(value, int | float):
+            if value > 10_000_000_000:
+                parsed = datetime.fromtimestamp(value / 1000, tz=UTC)
+            else:
+                parsed = datetime.combine(sample_date, datetime.min.time(), tzinfo=UTC) + timedelta(
+                    seconds=int(value)
+                )
+        else:
+            text = str(value)
+            if len(text) <= 5 and ":" in text:
+                parsed = datetime.fromisoformat(f"{sample_date.isoformat()}T{text}:00")
+            elif len(text) == 10 and text[4] == "-":
+                parsed = datetime.fromisoformat(f"{text}T07:00:00")
+            else:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    def _optional_int(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        return int(float(str(value)))
+
+    def _optional_decimal(self, value: Any) -> Decimal | None:
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    def _payload_hash(self, payload: dict[str, Any]) -> str:
+        encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 activity_mapper = GarminActivityMapper()
 daily_metric_mapper = GarminDailyMetricMapper()
 sleep_session_mapper = GarminSleepSessionMapper()
+biometric_mapper = GarminBiometricMapper()

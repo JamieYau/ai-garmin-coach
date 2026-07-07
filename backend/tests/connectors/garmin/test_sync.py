@@ -16,6 +16,7 @@ from app.db.models import Base
 from app.models import (
     Activity,
     AppUser,
+    BiometricSample,
     DailyMetric,
     RawObservation,
     SleepSession,
@@ -79,6 +80,21 @@ class FakeGarminActivityClient:
                 "averageRespiration": 13.8,
             },
             "sleepScores": {"overall": {"value": 82}},
+        }
+
+    def get_heart_rates(self, day: date) -> dict[str, Any]:
+        return {
+            "calendarDate": day.isoformat(),
+            "heartRateValues": [
+                ["2026-07-05T07:30:00Z", 61],
+                ["2026-07-05T07:31:00Z", 64],
+            ],
+        }
+
+    def get_hrv_data(self, day: date) -> dict[str, Any]:
+        return {
+            "calendarDate": day.isoformat(),
+            "lastNightAvg": 47.8,
         }
 
 
@@ -310,6 +326,71 @@ def test_garmin_daily_metric_and_sleep_sync_is_idempotent() -> None:
 
         assert len(session.scalars(select(DailyMetric)).all()) == 1
         assert len(session.scalars(select(SleepSession)).all()) == 1
+        assert len(session.scalars(select(RawObservation)).all()) == 2
+
+
+def test_garmin_biometric_sync_persists_heart_rate_and_hrv_samples() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_biometrics(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+
+        samples = session.scalars(select(BiometricSample)).all()
+        raw_observations = session.scalars(select(RawObservation)).all()
+        session.refresh(sync_run)
+
+        assert fake_client.login_tokenstore == "serialized-tokenstore"
+        assert result.status is SyncStatus.SUCCEEDED
+        assert result.raw_payload_count == 2
+        assert result.normalized_record_count == 3
+        assert {record.record_type for record in result.normalized_records} == {
+            ConnectorRecordType.BIOMETRIC_SAMPLE
+        }
+        assert [sample.sample_type for sample in samples] == ["heart_rate", "heart_rate", "hrv"]
+        assert samples[0].value == Decimal("61.000")
+        assert samples[0].unit == "bpm"
+        assert samples[2].value == Decimal("47.800")
+        assert samples[2].aggregation_window_seconds == 86_400
+        assert {raw.provider_object_type for raw in raw_observations} == {"heart_rate", "hrv"}
+        assert sync_run.status == "succeeded"
+        assert sync_run.records_seen == 2
+        assert sync_run.records_imported == 3
+
+
+def test_garmin_biometric_sync_is_idempotent() -> None:
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = FakeGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+        request = BackfillSyncRequest(
+            user_id=user.id,
+            source_connection_id=connection.id,
+            sync_run_id=sync_run.id,
+            start_date=date(2026, 7, 5),
+            end_date=date(2026, 7, 5),
+        )
+
+        service.sync_backfill_biometrics(session, request)
+        service.sync_backfill_biometrics(session, request)
+
+        assert len(session.scalars(select(BiometricSample)).all()) == 3
         assert len(session.scalars(select(RawObservation)).all()) == 2
 
 

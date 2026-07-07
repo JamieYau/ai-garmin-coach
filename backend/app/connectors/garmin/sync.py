@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from app.connectors.garmin.client import GarminClient, GarminCredentials
 from app.connectors.garmin.mappers import (
     GarminActivityMapper,
+    GarminBiometricMapper,
     GarminDailyMetricMapper,
     GarminSleepSessionMapper,
     activity_mapper,
+    biometric_mapper,
     daily_metric_mapper,
     sleep_session_mapper,
 )
@@ -21,6 +23,7 @@ from app.connectors.garmin.metadata import GARMIN_SOURCE_METADATA
 from app.core.security import decrypt_json_payload
 from app.models import (
     Activity,
+    BiometricSample,
     DailyMetric,
     RawObservation,
     SleepSession,
@@ -52,6 +55,10 @@ class GarminActivityClient(Protocol):
 
     def get_sleep_data(self, day: date) -> dict[str, Any]: ...
 
+    def get_heart_rates(self, day: date) -> dict[str, Any]: ...
+
+    def get_hrv_data(self, day: date) -> dict[str, Any] | None: ...
+
 
 GarminActivityClientBuilder = Callable[[bool], GarminActivityClient]
 
@@ -72,12 +79,14 @@ class GarminActivitySyncService:
         mapper: GarminActivityMapper = activity_mapper,
         daily_mapper: GarminDailyMetricMapper = daily_metric_mapper,
         sleep_mapper: GarminSleepSessionMapper = sleep_session_mapper,
+        biometric_mapper: GarminBiometricMapper = biometric_mapper,
     ) -> None:
         self._encryption_secret = encryption_secret
         self._client_builder = client_builder
         self._mapper = mapper
         self._daily_mapper = daily_mapper
         self._sleep_mapper = sleep_mapper
+        self._biometric_mapper = biometric_mapper
 
     def sync_backfill_activities(
         self,
@@ -106,6 +115,62 @@ class GarminActivitySyncService:
             self._upsert_raw_observation(db, request, result.raw_payload)
             for record in result.records:
                 self._upsert_activity(db, request, record)
+
+        sync_run.status = "succeeded"
+        sync_run.completed_at = datetime.now(UTC)
+        sync_run.records_seen = len(raw_payloads)
+        sync_run.records_imported = len(normalized_records)
+        sync_run.error_code = None
+        sync_run.error_message = None
+        db.commit()
+
+        return SyncResult(
+            source_connection_id=request.source_connection_id,
+            sync_run_id=request.sync_run_id,
+            status=SyncStatus.SUCCEEDED,
+            raw_payloads=raw_payloads,
+            normalized_records=normalized_records,
+        )
+
+    def sync_backfill_biometrics(
+        self,
+        db: Session,
+        request: BackfillSyncRequest,
+    ) -> SyncResult:
+        source_connection = self._load_source_connection(db, request)
+        sync_run = self._load_sync_run(db, request)
+        tokenstore = self._load_tokenstore(source_connection)
+        client = self._authenticated_client(source_connection, tokenstore)
+        raw_payloads: list[ProviderPayload] = []
+        normalized_records: list[NormalizedRecord] = []
+        sync_run.status = "running"
+        sync_run.started_at = datetime.now(UTC)
+        sync_run.window_start = datetime.combine(
+            request.start_date,
+            datetime.min.time(),
+            tzinfo=UTC,
+        )
+        sync_run.window_end = datetime.combine(request.end_date, datetime.max.time(), tzinfo=UTC)
+
+        for day in self._date_range(request.start_date, request.end_date):
+            heart_rate_result = self._biometric_mapper.normalize_heart_rates(
+                client.get_heart_rates(day),
+                day,
+            )
+            raw_payloads.append(heart_rate_result.raw_payload)
+            normalized_records.extend(heart_rate_result.records)
+            self._upsert_raw_observation(db, request, heart_rate_result.raw_payload)
+            for record in heart_rate_result.records:
+                self._upsert_biometric_sample(db, request, record)
+
+            hrv_data = client.get_hrv_data(day)
+            if hrv_data is not None:
+                hrv_result = self._biometric_mapper.normalize_hrv(hrv_data, day)
+                raw_payloads.append(hrv_result.raw_payload)
+                normalized_records.extend(hrv_result.records)
+                self._upsert_raw_observation(db, request, hrv_result.raw_payload)
+                for record in hrv_result.records:
+                    self._upsert_biometric_sample(db, request, record)
 
         sync_run.status = "succeeded"
         sync_run.completed_at = datetime.now(UTC)
@@ -351,6 +416,38 @@ class GarminActivitySyncService:
         self._apply_sleep_session_data(sleep_session, record.data)
         return sleep_session
 
+    def _upsert_biometric_sample(
+        self,
+        db: Session,
+        request: BackfillSyncRequest,
+        record: NormalizedRecord,
+    ) -> BiometricSample:
+        if record.record_type is not ConnectorRecordType.BIOMETRIC_SAMPLE:
+            raise ValueError(f"Unsupported Garmin biometric record type: {record.record_type}")
+
+        sample = db.scalar(
+            select(BiometricSample).where(
+                BiometricSample.source_connection_id == request.source_connection_id,
+                BiometricSample.sample_type == record.data["sample_type"],
+                BiometricSample.sampled_at == record.data["sampled_at"],
+            )
+        )
+        if sample is None:
+            sample = BiometricSample(
+                user_id=request.user_id,
+                source_connection_id=request.source_connection_id,
+                source_sample_id=record.source_record_id,
+                sample_type=record.data["sample_type"],
+                sampled_at=record.data["sampled_at"],
+                value=self._required_decimal(record.data["value"]),
+                unit=record.data["unit"],
+                raw_data=record.data["raw_data"],
+            )
+            db.add(sample)
+
+        self._apply_biometric_sample_data(sample, record.data)
+        return sample
+
     def _apply_activity_data(self, activity: Activity, data: dict[str, Any]) -> None:
         activity.activity_type = str(data["activity_type"])
         activity.name = self._optional_str(data.get("name"))
@@ -399,6 +496,21 @@ class GarminActivitySyncService:
         sleep_session.average_respiration = self._optional_decimal(data.get("average_respiration"))
         sleep_session.raw_data = data["raw_data"]
 
+    def _apply_biometric_sample_data(
+        self,
+        sample: BiometricSample,
+        data: dict[str, Any],
+    ) -> None:
+        sample.source_sample_id = str(data["source_sample_id"])
+        sample.sample_type = str(data["sample_type"])
+        sample.sampled_at = data["sampled_at"]
+        sample.value = self._required_decimal(data["value"])
+        sample.unit = str(data["unit"])
+        sample.aggregation_window_seconds = self._optional_int(
+            data.get("aggregation_window_seconds")
+        )
+        sample.raw_data = data["raw_data"]
+
     def _date_range(self, start_date: date, end_date: date) -> tuple[date, ...]:
         days = (end_date - start_date).days
         return tuple(start_date + timedelta(days=offset) for offset in range(days + 1))
@@ -420,6 +532,11 @@ class GarminActivitySyncService:
     def _optional_decimal(self, value: object) -> Decimal | None:
         if value is None:
             return None
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+
+    def _required_decimal(self, value: object) -> Decimal:
         if isinstance(value, Decimal):
             return value
         return Decimal(str(value))
