@@ -1,9 +1,12 @@
 import base64
 import hashlib
 import hmac
+import json
 from secrets import compare_digest
+from typing import Any
 from urllib.parse import unquote
 
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Request
 
 REDACTED_VALUE = "[redacted]"
@@ -19,6 +22,41 @@ def redact_secret(value: str | None) -> str | None:
     if not value:
         return value
     return REDACTED_VALUE
+
+
+def _fernet_for_secret(secret: str) -> Fernet:
+    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+    key = base64.urlsafe_b64encode(digest)
+    return Fernet(key)
+
+
+def encrypt_json_payload(payload: dict[str, Any], secret: str) -> dict[str, str | int]:
+    plaintext = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ciphertext = _fernet_for_secret(secret).encrypt(plaintext).decode("ascii")
+    return {
+        "schema_version": 1,
+        "algorithm": "fernet-sha256",
+        "ciphertext": ciphertext,
+    }
+
+
+def decrypt_json_payload(envelope: dict[str, Any], secret: str) -> dict[str, Any]:
+    if envelope.get("schema_version") != 1 or envelope.get("algorithm") != "fernet-sha256":
+        raise ValueError("Unsupported encrypted payload envelope")
+
+    ciphertext = envelope.get("ciphertext")
+    if not isinstance(ciphertext, str) or not ciphertext:
+        raise ValueError("Encrypted payload envelope is missing ciphertext")
+
+    try:
+        plaintext = _fernet_for_secret(secret).decrypt(ciphertext.encode("ascii"))
+    except InvalidToken as exc:
+        raise ValueError("Encrypted payload could not be decrypted") from exc
+
+    decoded = json.loads(plaintext.decode("utf-8"))
+    if not isinstance(decoded, dict):
+        raise ValueError("Encrypted payload did not contain a JSON object")
+    return decoded
 
 
 def _sign_cookie_value(value: str, secret: str) -> str:

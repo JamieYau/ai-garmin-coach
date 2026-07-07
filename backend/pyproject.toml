@@ -5,7 +5,9 @@ description = "FastAPI backend for the AI Garmin Coach dashboard."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.13",
+    "cryptography>=49.0.0",
     "fastapi>=0.115",
+    "garminconnect>=0.3.6",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.5",
     "sqlalchemy>=2.0",
