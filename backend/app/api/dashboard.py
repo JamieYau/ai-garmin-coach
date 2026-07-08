@@ -134,6 +134,15 @@ def get_dashboard_overview(
             SourceConnection.status == "active",
         )
     )
+    has_demo_data = db.scalar(
+        select(func.count(SourceConnection.id)).where(
+            SourceConnection.user_id == current_user.id,
+            (
+                (SourceConnection.source == "demo")
+                | (SourceConnection.connection_metadata["demo"].as_boolean().is_(True))
+            ),
+        )
+    )
 
     return DashboardOverviewResponse(
         activity=DashboardActivitySummary(
@@ -171,6 +180,7 @@ def get_dashboard_overview(
         sync=DashboardSyncSummary(
             connected_sources=_scalar_or_zero(connected_sources),
             active_sources=_scalar_or_zero(active_sources),
+            has_demo_data=_scalar_or_zero(has_demo_data) > 0,
             latest_sync_status=latest_sync.status if latest_sync is not None else None,
             latest_sync_completed_at=latest_sync.completed_at if latest_sync is not None else None,
             latest_sync_error_code=latest_sync.error_code if latest_sync is not None else None,

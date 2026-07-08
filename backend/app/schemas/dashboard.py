@@ -113,6 +113,7 @@ class DashboardSyncSummary(BaseModel):
 
     connected_sources: int = Field(ge=0)
     active_sources: int = Field(ge=0)
+    has_demo_data: bool = False
     latest_sync_status: str | None = None
     latest_sync_completed_at: datetime | None = None
     latest_sync_error_code: str | None = None

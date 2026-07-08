@@ -92,6 +92,7 @@ export type DashboardInsightDetail = DashboardInsightSummary & {
 export type DashboardSyncSummary = {
   connected_sources: number;
   active_sources: number;
+  has_demo_data: boolean;
   latest_sync_status: string | null;
   latest_sync_completed_at: IsoDateTimeString | null;
   latest_sync_error_code: string | null;

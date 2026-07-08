@@ -10,6 +10,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import {
+  classifyDashboardDataState,
+  DashboardDataStateBanner,
+} from "@/components/dashboard/DashboardDataState";
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -144,6 +148,7 @@ function DetailRow({
 
 export function DashboardSources({ overview }: DashboardSourcesProps) {
   const { sync } = overview;
+  const dataState = classifyDashboardDataState(overview);
   const health = connectionHealth(sync);
   const HealthIcon = health.icon;
   const inactiveSources = Math.max(
@@ -171,6 +176,8 @@ export function DashboardSources({ overview }: DashboardSourcesProps) {
           Overview
         </Link>
       </header>
+
+      <DashboardDataStateBanner state={dataState} />
 
       <section
         className="grid gap-4 md:grid-cols-4"

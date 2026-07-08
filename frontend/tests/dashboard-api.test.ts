@@ -60,6 +60,7 @@ describe("dashboard API client", () => {
       sync: {
         connected_sources: 1,
         active_sources: 1,
+        has_demo_data: false,
         latest_sync_status: "succeeded",
         latest_sync_completed_at: "2026-07-07T10:30:00",
         latest_sync_error_code: null,

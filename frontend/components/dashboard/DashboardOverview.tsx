@@ -13,6 +13,10 @@ import {
   Zap,
 } from "lucide-react";
 
+import {
+  classifyDashboardDataState,
+  DashboardDataStateBanner,
+} from "@/components/dashboard/DashboardDataState";
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,6 +157,7 @@ function DetailRow({
 
 export function DashboardOverview({ overview }: DashboardOverviewProps) {
   const { activity, recovery, sleep, latest_insight: insight, sync } = overview;
+  const dataState = classifyDashboardDataState(overview);
   const activityDistance = formatDistance(activity.distance_meters_7d);
   const activityDuration = formatDuration(activity.duration_seconds_7d);
   const sleepDuration = formatDuration(sleep.total_sleep_seconds);
@@ -182,6 +187,8 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
           Last sync {formatDateTime(sync.latest_sync_completed_at)}
         </div>
       </header>
+
+      <DashboardDataStateBanner state={dataState} />
 
       <section
         id="metrics"

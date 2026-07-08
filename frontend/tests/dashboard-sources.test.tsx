@@ -38,6 +38,7 @@ const connectedOverview: DashboardOverviewResponse = {
   sync: {
     connected_sources: 1,
     active_sources: 1,
+    has_demo_data: false,
     latest_sync_status: "succeeded",
     latest_sync_completed_at: "2026-07-07T09:15:00Z",
     latest_sync_error_code: null,
@@ -50,6 +51,7 @@ const disconnectedOverview: DashboardOverviewResponse = {
   sync: {
     connected_sources: 0,
     active_sources: 0,
+    has_demo_data: false,
     latest_sync_status: null,
     latest_sync_completed_at: null,
     latest_sync_error_code: null,

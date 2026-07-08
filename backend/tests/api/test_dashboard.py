@@ -91,6 +91,7 @@ def test_dashboard_overview_returns_empty_summary_for_new_user() -> None:
         "sync": {
             "connected_sources": 0,
             "active_sources": 0,
+            "has_demo_data": False,
             "latest_sync_status": None,
             "latest_sync_completed_at": None,
             "latest_sync_error_code": None,
@@ -263,10 +264,31 @@ def test_dashboard_overview_returns_current_user_summary() -> None:
     assert body["sync"] == {
         "connected_sources": 1,
         "active_sources": 1,
+        "has_demo_data": False,
         "latest_sync_status": "succeeded",
         "latest_sync_completed_at": "2026-07-07T10:30:00",
         "latest_sync_error_code": None,
     }
+
+
+def test_dashboard_overview_marks_demo_source_data() -> None:
+    client, db, user, _other_user = _create_client()
+    connection = SourceConnection(
+        user_id=user.id,
+        source="demo",
+        status="active",
+        connection_metadata={"demo": True},
+    )
+    db.add(connection)
+    db.commit()
+
+    try:
+        response = client.get("/dashboard/overview")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    assert response.json()["sync"]["has_demo_data"] is True
 
 
 def test_dashboard_overview_requires_authentication() -> None:
