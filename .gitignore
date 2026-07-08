@@ -45,3 +45,5 @@ Thumbs.db
 AGENTS.md
 .ai/
 scripts/
+!frontend/scripts/
+!frontend/scripts/seed-demo-data.mjs

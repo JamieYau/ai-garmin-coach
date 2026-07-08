@@ -4,7 +4,9 @@ import {
   Activity,
   AlertCircle,
   BarChart3,
+  Bed,
   Brain,
+  DatabaseZap,
   Home,
   UserCircle,
 } from "lucide-react";
@@ -12,14 +14,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { buttonVariants } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: BarChart3 },
-  { href: "/dashboard#metrics", label: "Metrics", icon: Activity },
-  { href: "/dashboard#coach", label: "Coach", icon: Brain },
+  { href: "/dashboard/activities", label: "Activities", icon: Activity },
+  { href: "/dashboard/recovery", label: "Recovery", icon: Bed },
+  { href: "/dashboard/coach", label: "Coach", icon: Brain },
+  { href: "/dashboard/sources", label: "Sources", icon: DatabaseZap },
 ];
 
 type NavUser = {
@@ -53,8 +58,11 @@ export function MainNav({
         >
           {navItems.map((item) => {
             const Icon = item.icon;
+            const itemPathname = item.href.split("#")[0];
             const isActive =
-              pathname === "/dashboard" && item.href === "/dashboard";
+              itemPathname === "/dashboard"
+                ? pathname === itemPathname && item.href === "/dashboard"
+                : pathname === itemPathname;
 
             return (
               <Link
@@ -74,6 +82,8 @@ export function MainNav({
         </nav>
 
         <div className="flex min-w-20 items-center justify-end gap-3">
+          <ThemeToggle />
+
           {error ? (
             <span className="inline-flex items-center gap-2 text-sm font-medium text-destructive">
               <AlertCircle className="size-4" aria-hidden="true" />

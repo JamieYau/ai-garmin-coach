@@ -12,6 +12,7 @@
     "format:check": "prettier . --check",
     "auth:generate": "npx auth@1.6.23 generate --config lib/auth/config.ts",
     "auth:migrate": "npx auth@1.6.23 migrate --config lib/auth/config.ts",
+    "demo:seed": "node scripts/seed-demo-data.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -30,6 +31,7 @@
     "postcss": "^8.5.16",
     "react": "latest",
     "react-dom": "latest",
+    "recharts": "^3.8.0",
     "shadcn": "^4.12.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
