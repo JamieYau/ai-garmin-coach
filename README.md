@@ -7,6 +7,7 @@ An AI-powered coaching dashboard that ingests Garmin fitness data and generates 
 The MVP connects a user's Garmin data, stores normalized training and recovery records, and presents a dashboard with structured AI coaching insights. The first working slice should prioritize Garmin ingestion, dashboard metrics, and daily coach recommendations over broad connector or chat features.
 
 ## Stack
+
 - Frontend: Next.js App Router, TypeScript, Tailwind, shadcn/ui or Radix, TanStack Query
 - Backend: FastAPI, Pydantic, SQLAlchemy 2.0, Alembic
 - Database: PostgreSQL
@@ -23,11 +24,11 @@ The MVP connects a user's Garmin data, stores normalized training and recovery r
 
 ## Local Services
 
-| Service | Local name | Port | URL |
-| --- | --- | --- | --- |
-| Frontend | `garmin-coach-frontend` | `3000` | `http://localhost:3000` |
-| Backend API | `garmin-coach-api` | `8000` | `http://localhost:8000` |
-| PostgreSQL | `garmin-coach-postgres` | `5432` | `postgresql://localhost:5432/garmin_coach` |
+| Service     | Local name              | Port   | URL                                        |
+| ----------- | ----------------------- | ------ | ------------------------------------------ |
+| Frontend    | `garmin-coach-frontend` | `3000` | `http://localhost:3000`                    |
+| Backend API | `garmin-coach-api`      | `8000` | `http://localhost:8000`                    |
+| PostgreSQL  | `garmin-coach-postgres` | `5432` | `postgresql://localhost:5432/garmin_coach` |
 
 ## Environment
 
@@ -96,6 +97,7 @@ npm run format:check
 npm run format
 npm run auth:generate
 npm run auth:migrate
+npm run demo:seed
 npm run typecheck
 npm run test
 ```
@@ -104,6 +106,19 @@ For local email/password authentication, point `BETTER_AUTH_DATABASE_URL`
 at the same PostgreSQL database using the standard `postgresql://` URL form,
 then run `npm run auth:migrate` from `frontend/` to create Better Auth's
 tables.
+
+To preview protected dashboard screens before real Garmin sync is wired up,
+seed the local demo account and deterministic dashboard data:
+
+```bash
+cd frontend
+npm run demo:seed
+```
+
+The seed command refuses production environments, is safe to rerun, and uses
+`DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_NAME` from `.env` when
+present. By default, sign in locally with `demo@example.test` and
+`demo-password-local-only`.
 
 ## API Authentication Boundary
 
@@ -133,4 +148,5 @@ on `get_current_app_user` or `get_current_user` from
 to that local user.
 
 ## Status
+
 MVP in development

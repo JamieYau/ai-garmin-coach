@@ -13,7 +13,7 @@ import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -21,7 +21,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { DashboardActivityDetail } from "@/lib/api/dashboard";
+import { cn } from "@/lib/utils";
 
 type DashboardActivitiesProps = {
   activities: DashboardActivityDetail[];
@@ -225,9 +234,12 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
             load, heart rate, and activity type.
           </p>
         </div>
-        <Button variant="outline" size="sm" render={<Link href="/dashboard" />}>
+        <Link
+          href="/dashboard"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
           Overview
-        </Button>
+        </Link>
       </header>
 
       {activities.length === 0 ? (
@@ -367,67 +379,62 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
               <CardTitle>Recent activities</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-                      <th className="py-3 pr-4">Activity</th>
-                      <th className="px-4 py-3">When</th>
-                      <th className="px-4 py-3 text-right">Duration</th>
-                      <th className="px-4 py-3 text-right">Distance</th>
-                      <th className="px-4 py-3 text-right">Pace</th>
-                      <th className="px-4 py-3 text-right">Avg HR</th>
-                      <th className="py-3 pl-4 text-right">Load</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activities.map((activity) => (
-                      <tr
-                        key={activity.id}
-                        className="border-b border-border/70 last:border-0"
-                      >
-                        <td className="py-4 pr-4">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-medium">
-                              {activity.name ??
-                                formatActivityType(activity.activity_type)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatActivityType(activity.activity_type)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-muted-foreground">
-                          {formatDateTime(activity.started_at)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-medium">
-                          {formatDuration(activity.duration_seconds)}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          {formatDistance(activity.distance_meters)}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          {formatPace(activity)}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          {activity.average_heart_rate
-                            ? `${activity.average_heart_rate} bpm`
-                            : "No data"}
-                        </td>
-                        <td className="py-4 pl-4 text-right">
-                          <div className="inline-flex items-center justify-end gap-1.5">
-                            <Flame
-                              className="size-3.5 text-muted-foreground"
-                              aria-hidden="true"
-                            />
-                            {formatTrainingLoad(activity.training_load)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table className="min-w-[760px]">
+                <TableHeader>
+                  <TableRow className="text-xs font-medium text-muted-foreground hover:bg-transparent">
+                    <TableHead className="px-0">Activity</TableHead>
+                    <TableHead>When</TableHead>
+                    <TableHead className="text-right">Duration</TableHead>
+                    <TableHead className="text-right">Distance</TableHead>
+                    <TableHead className="text-right">Pace</TableHead>
+                    <TableHead className="text-right">Avg HR</TableHead>
+                    <TableHead className="px-0 text-right">Load</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activities.map((activity) => (
+                    <TableRow key={activity.id}>
+                      <TableCell className="px-0 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">
+                            {activity.name ??
+                              formatActivityType(activity.activity_type)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatActivityType(activity.activity_type)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4 text-muted-foreground">
+                        {formatDateTime(activity.started_at)}
+                      </TableCell>
+                      <TableCell className="py-4 text-right font-medium">
+                        {formatDuration(activity.duration_seconds)}
+                      </TableCell>
+                      <TableCell className="py-4 text-right">
+                        {formatDistance(activity.distance_meters)}
+                      </TableCell>
+                      <TableCell className="py-4 text-right">
+                        {formatPace(activity)}
+                      </TableCell>
+                      <TableCell className="py-4 text-right">
+                        {activity.average_heart_rate
+                          ? `${activity.average_heart_rate} bpm`
+                          : "No data"}
+                      </TableCell>
+                      <TableCell className="px-0 py-4 text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          <Flame
+                            className="size-3.5 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          {formatTrainingLoad(activity.training_load)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </>
