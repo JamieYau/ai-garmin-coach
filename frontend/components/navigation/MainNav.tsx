@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: BarChart3 },
-  { href: "/dashboard#metrics", label: "Metrics", icon: Activity },
+  { href: "/dashboard/activities", label: "Activities", icon: Activity },
   { href: "/dashboard#coach", label: "Coach", icon: Brain },
 ];
 
@@ -53,8 +53,11 @@ export function MainNav({
         >
           {navItems.map((item) => {
             const Icon = item.icon;
+            const itemPathname = item.href.split("#")[0];
             const isActive =
-              pathname === "/dashboard" && item.href === "/dashboard";
+              itemPathname === "/dashboard"
+                ? pathname === itemPathname && item.href === "/dashboard"
+                : pathname === itemPathname;
 
             return (
               <Link
