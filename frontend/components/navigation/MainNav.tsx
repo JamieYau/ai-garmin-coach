@@ -6,6 +6,7 @@ import {
   BarChart3,
   Bed,
   Brain,
+  DatabaseZap,
   Home,
   UserCircle,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/dashboard/activities", label: "Activities", icon: Activity },
   { href: "/dashboard/recovery", label: "Recovery", icon: Bed },
   { href: "/dashboard/coach", label: "Coach", icon: Brain },
+  { href: "/dashboard/sources", label: "Sources", icon: DatabaseZap },
 ];
 
 type NavUser = {
