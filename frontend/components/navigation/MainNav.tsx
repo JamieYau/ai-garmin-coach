@@ -13,6 +13,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { buttonVariants } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,8 @@ export function MainNav({
         </nav>
 
         <div className="flex min-w-20 items-center justify-end gap-3">
+          <ThemeToggle />
+
           {error ? (
             <span className="inline-flex items-center gap-2 text-sm font-medium text-destructive">
               <AlertCircle className="size-4" aria-hidden="true" />
