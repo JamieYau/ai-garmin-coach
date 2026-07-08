@@ -4,6 +4,7 @@ import {
   Activity,
   AlertCircle,
   BarChart3,
+  Bed,
   Brain,
   Home,
   UserCircle,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: BarChart3 },
   { href: "/dashboard/activities", label: "Activities", icon: Activity },
+  { href: "/dashboard/recovery", label: "Recovery", icon: Bed },
   { href: "/dashboard#coach", label: "Coach", icon: Brain },
 ];
 

@@ -15,12 +15,7 @@ import {
 
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DashboardOverviewResponse } from "@/lib/api/dashboard";
 
 type DashboardOverviewProps = {
@@ -130,9 +125,7 @@ function MetricCard({ label, value, detail, icon: Icon }: MetricCardProps) {
       </CardHeader>
       <CardContent>
         <p className="text-2xl font-semibold">{value}</p>
-        <p className="mt-2 text-sm leading-5 text-muted-foreground">
-          {detail}
-        </p>
+        <p className="mt-2 text-sm leading-5 text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
   );
@@ -163,7 +156,9 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
   const activityDistance = formatDistance(activity.distance_meters_7d);
   const activityDuration = formatDuration(activity.duration_seconds_7d);
   const sleepDuration = formatDuration(sleep.total_sleep_seconds);
-  const sleepScore = sleep.sleep_score ? `${sleep.sleep_score}/100` : "No score";
+  const sleepScore = sleep.sleep_score
+    ? `${sleep.sleep_score}/100`
+    : "No score";
   const bodyBattery =
     recovery.body_battery_latest === null
       ? "No data"
@@ -216,7 +211,10 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card id="coach">
           <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Brain className="size-5 text-muted-foreground" aria-hidden="true" />
+            <Brain
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
             <CardTitle>Coach recommendation</CardTitle>
           </CardHeader>
           <CardContent>
