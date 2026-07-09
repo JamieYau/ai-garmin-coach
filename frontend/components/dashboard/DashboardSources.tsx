@@ -14,6 +14,7 @@ import {
   classifyDashboardDataState,
   DashboardDataStateBanner,
 } from "@/components/dashboard/DashboardDataState";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 type DashboardSourcesProps = {
   overview: DashboardOverviewResponse;
+  actions?: ReactNode;
 };
 
 type SourceMetricCardProps = {
@@ -146,7 +148,7 @@ function DetailRow({
   );
 }
 
-export function DashboardSources({ overview }: DashboardSourcesProps) {
+export function DashboardSources({ overview, actions }: DashboardSourcesProps) {
   const { sync } = overview;
   const dataState = classifyDashboardDataState(overview);
   const health = connectionHealth(sync);
@@ -178,6 +180,8 @@ export function DashboardSources({ overview }: DashboardSourcesProps) {
       </header>
 
       <DashboardDataStateBanner state={dataState} />
+
+      {actions}
 
       <section
         className="grid gap-4 md:grid-cols-4"

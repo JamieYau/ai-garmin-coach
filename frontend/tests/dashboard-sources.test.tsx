@@ -61,10 +61,14 @@ const disconnectedOverview: DashboardOverviewResponse = {
 describe("DashboardSources", () => {
   it("renders connection counts, sync health, and coverage context", () => {
     const markup = renderToStaticMarkup(
-      <DashboardSources overview={connectedOverview} />,
+      <DashboardSources
+        overview={connectedOverview}
+        actions={<div>Source actions placeholder</div>}
+      />,
     );
 
     expect(markup).toContain("Data source status");
+    expect(markup).toContain("Source actions placeholder");
     expect(markup).toContain("Connected");
     expect(markup).toContain("Active");
     expect(markup).toContain("Succeeded");

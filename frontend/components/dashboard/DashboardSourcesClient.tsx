@@ -1,9 +1,25 @@
 "use client";
 
+import { useState } from "react";
+
+import { DashboardSourceControls } from "@/components/dashboard/DashboardSourceControls";
 import { DashboardSources } from "@/components/dashboard/DashboardSources";
 import { ErrorState, Skeleton } from "@/components/states";
+import {
+  useDisconnectGarminMutation,
+  useManualSyncMutation,
+} from "@/hooks/useDataControls";
 import { useDashboardOverviewQuery } from "@/hooks/useDashboard";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { isApiError } from "@/lib/api/errors";
+
+function dataControlErrorMessage(error: unknown, action: string) {
+  if (isApiError(error) && error.status === 429) {
+    return "Too many requests. Wait a minute and try again.";
+  }
+
+  return getApiErrorMessage(error, `${action} failed. Try again.`);
+}
 
 function DashboardSourcesSkeleton() {
   return (
@@ -47,6 +63,13 @@ function DashboardSourcesSkeleton() {
 
 export function DashboardSourcesClient() {
   const overviewQuery = useDashboardOverviewQuery();
+  const [isDisconnectConfirming, setIsDisconnectConfirming] = useState(false);
+  const manualSyncMutation = useManualSyncMutation();
+  const disconnectMutation = useDisconnectGarminMutation({
+    onSuccess: () => {
+      setIsDisconnectConfirming(false);
+    },
+  });
 
   if (overviewQuery.isPending) {
     return <DashboardSourcesSkeleton />;
@@ -65,5 +88,30 @@ export function DashboardSourcesClient() {
     );
   }
 
-  return <DashboardSources overview={overviewQuery.data} />;
+  return (
+    <DashboardSources
+      overview={overviewQuery.data}
+      actions={
+        <DashboardSourceControls
+          sync={overviewQuery.data.sync}
+          manualSyncStatus={manualSyncMutation.status}
+          manualSyncResult={manualSyncMutation.data}
+          manualSyncErrorMessage={dataControlErrorMessage(
+            manualSyncMutation.error,
+            "Manual sync",
+          )}
+          disconnectStatus={disconnectMutation.status}
+          disconnectErrorMessage={dataControlErrorMessage(
+            disconnectMutation.error,
+            "Disconnect",
+          )}
+          isDisconnectConfirming={isDisconnectConfirming}
+          onManualSync={() => manualSyncMutation.mutate({ source: "garmin" })}
+          onDisconnectRequest={() => setIsDisconnectConfirming(true)}
+          onDisconnectCancel={() => setIsDisconnectConfirming(false)}
+          onDisconnectConfirm={() => disconnectMutation.mutate()}
+        />
+      }
+    />
+  );
 }
