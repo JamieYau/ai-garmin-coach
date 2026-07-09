@@ -4,7 +4,12 @@ from typing import Any, Protocol, cast
 
 from pydantic import ValidationError
 
-from app.ai.base import AIProviderConfigurationError, AIProviderError, CoachProviderRequest
+from app.ai.base import (
+    AIProviderConfigurationError,
+    AIProviderError,
+    CoachProviderRequest,
+    validate_coach_provider_output,
+)
 from app.core.config import Settings
 from app.schemas.coach import (
     CoachInsightOutput,
@@ -144,6 +149,7 @@ def _validated_final_output(
     response_id: str | None,
     model_name: str,
 ) -> CoachInsightOutput:
+    parsed = validate_coach_provider_output(parsed, provider_name="OpenAI")
     try:
         _validate_text(parsed)
     except ValueError as error:

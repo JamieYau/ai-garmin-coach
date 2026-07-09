@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +17,10 @@ class AIProviderConfigurationError(ValueError):
 
 
 class AIProviderError(RuntimeError):
+    pass
+
+
+class AIProviderOutputError(AIProviderError):
     pass
 
 
@@ -51,3 +56,32 @@ def get_coach_provider(settings: Settings | None = None) -> CoachProvider:
         return OpenAICoachProvider.from_settings(resolved_settings)
 
     raise AIProviderConfigurationError(f"Unsupported AI_PROVIDER: {resolved_settings.ai_provider}")
+
+
+def validate_coach_provider_output(
+    output: CoachInsightOutput | dict[str, Any] | str,
+    *,
+    provider_name: str,
+) -> CoachInsightOutput:
+    if isinstance(output, CoachInsightOutput):
+        return output
+
+    if isinstance(output, str):
+        try:
+            parsed_json = json.loads(output)
+        except json.JSONDecodeError as error:
+            raise AIProviderOutputError(
+                f"{provider_name} coach output was not valid JSON"
+            ) from error
+    else:
+        parsed_json = output
+
+    if not isinstance(parsed_json, dict):
+        raise AIProviderOutputError(f"{provider_name} coach output must be a JSON object")
+
+    try:
+        return CoachInsightOutput.model_validate(parsed_json)
+    except ValueError as error:
+        raise AIProviderOutputError(
+            f"{provider_name} coach output failed schema validation"
+        ) from error
