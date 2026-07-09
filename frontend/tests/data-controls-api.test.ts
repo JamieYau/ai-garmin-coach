@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  connectGarmin,
   deleteAccountData,
   deleteSyncedData,
   disconnectGarmin,
@@ -29,6 +30,81 @@ afterEach(() => {
 });
 
 describe("data control API client", () => {
+  it("connects Garmin with JSON credentials and optional MFA code", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://api.test";
+    const responseBody = {
+      id: "connection-1",
+      source: "garmin",
+      status: "active",
+      provider_subject_id: "provider-1",
+      display_name: "Runner Example",
+      requires_mfa: false,
+      message: null,
+    };
+    const fetchMock = vi.fn(async () => mockJsonResponse(responseBody));
+    globalThis.fetch = fetchMock;
+
+    await expect(
+      connectGarmin({
+        username: "runner@example.test",
+        password: "garmin-password",
+        mfa_code: "123456",
+        is_cn: true,
+      }),
+    ).resolves.toEqual(responseBody);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/connections/garmin",
+      expect.objectContaining({
+        credentials: "include",
+        method: "POST",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          username: "runner@example.test",
+          password: "garmin-password",
+          is_cn: true,
+          mfa_code: "123456",
+        }),
+      }),
+    );
+  });
+
+  it("omits an empty Garmin MFA code", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://api.test";
+    const fetchMock = vi.fn(async () =>
+      mockJsonResponse({
+        id: null,
+        source: "garmin",
+        status: "mfa_required",
+        provider_subject_id: null,
+        display_name: null,
+        requires_mfa: true,
+        message: "Garmin requires a multi-factor authentication code.",
+      }),
+    );
+    globalThis.fetch = fetchMock;
+
+    await connectGarmin({
+      username: "runner@example.test",
+      password: "garmin-password",
+      mfa_code: "",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/connections/garmin",
+      expect.objectContaining({
+        body: JSON.stringify({
+          username: "runner@example.test",
+          password: "garmin-password",
+          is_cn: false,
+        }),
+      }),
+    );
+  });
+
   it("triggers manual sync with JSON request body", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://api.test";
     const responseBody = {

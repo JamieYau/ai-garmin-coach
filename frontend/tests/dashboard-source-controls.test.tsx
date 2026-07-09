@@ -19,6 +19,7 @@ const inactiveSync: DashboardOverviewResponse["sync"] = {
 };
 
 const handlers = {
+  onConnect: vi.fn(),
   onManualSync: vi.fn(),
   onDisconnectRequest: vi.fn(),
   onDisconnectCancel: vi.fn(),
@@ -33,6 +34,10 @@ describe("DashboardSourceControls", () => {
 
     expect(markup).toContain("Source actions");
     expect(markup).toContain("Garmin active");
+    expect(markup).toContain("Connect Garmin");
+    expect(markup).toContain("Garmin username");
+    expect(markup).toContain("Garmin password");
+    expect(markup).toContain("not displayed after submission");
     expect(markup).toContain("Manual sync");
     expect(markup).toContain("Sync");
     expect(markup).toContain("Garmin connection");
@@ -46,6 +51,90 @@ describe("DashboardSourceControls", () => {
 
     expect(markup).toContain("Garmin inactive");
     expect(markup).toContain("Reconnect Garmin before syncing.");
+  });
+
+  it("renders Garmin connection validation, success, and MFA states", () => {
+    const validationMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={activeSync}
+        connectErrorMessage="Enter your Garmin username and password."
+        connectStatus="error"
+        {...handlers}
+      />,
+    );
+    const successMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={activeSync}
+        connectStatus="success"
+        connectResult={{
+          id: "connection-1",
+          source: "garmin",
+          status: "active",
+          provider_subject_id: "provider-1",
+          display_name: "Runner Example",
+          requires_mfa: false,
+          message: null,
+        }}
+        {...handlers}
+      />,
+    );
+    const mfaMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={inactiveSync}
+        connectStatus="success"
+        connectResult={{
+          id: null,
+          source: "garmin",
+          status: "mfa_required",
+          provider_subject_id: null,
+          display_name: null,
+          requires_mfa: true,
+          message: "Garmin requires a multi-factor authentication code.",
+        }}
+        {...handlers}
+      />,
+    );
+
+    expect(validationMarkup).toContain("Garmin connection failed");
+    expect(validationMarkup).toContain("Enter your Garmin username");
+    expect(successMarkup).toContain("Garmin connected");
+    expect(successMarkup).toContain("Runner Example is connected");
+    expect(mfaMarkup).toContain("Garmin verification required");
+    expect(mfaMarkup).toContain("Garmin verification code");
+    expect(mfaMarkup).toContain("Verify and connect");
+  });
+
+  it("renders Garmin connection rate-limit, invalid-credential, and generic failure states", () => {
+    const rateLimitMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={inactiveSync}
+        connectStatus="error"
+        connectErrorMessage="Too many Garmin connection attempts. Wait a minute and try again."
+        {...handlers}
+      />,
+    );
+    const invalidCredentialMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={inactiveSync}
+        connectStatus="error"
+        connectErrorMessage="Garmin credentials were not accepted. Check the username and password, then try again."
+        {...handlers}
+      />,
+    );
+    const genericErrorMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={inactiveSync}
+        connectStatus="error"
+        connectErrorMessage="Garmin could not be connected."
+        {...handlers}
+      />,
+    );
+
+    expect(rateLimitMarkup).toContain("Too many Garmin connection attempts");
+    expect(invalidCredentialMarkup).toContain(
+      "Garmin credentials were not accepted",
+    );
+    expect(genericErrorMarkup).toContain("Garmin could not be connected");
   });
 
   it("renders manual sync success and rate-limit error states", () => {

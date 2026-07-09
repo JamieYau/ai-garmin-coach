@@ -1,7 +1,12 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  LockKeyhole,
+  PlugZap,
   RefreshCw,
   Unplug,
   X,
@@ -11,19 +16,29 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { DashboardOverviewResponse } from "@/lib/api/dashboard";
-import type { ManualSyncResponse } from "@/lib/api/dataControls";
+import type {
+  GarminConnectionRequest,
+  GarminConnectionResponse,
+  ManualSyncResponse,
+} from "@/lib/api/dataControls";
 
 type ActionStatus = "idle" | "pending" | "success" | "error";
 
 export type DashboardSourceControlsProps = {
   sync: DashboardOverviewResponse["sync"];
+  connectStatus?: ActionStatus;
+  connectResult?: GarminConnectionResponse | null;
+  connectErrorMessage?: string | null;
   manualSyncStatus?: ActionStatus;
   manualSyncResult?: ManualSyncResponse | null;
   manualSyncErrorMessage?: string | null;
   disconnectStatus?: ActionStatus;
   disconnectErrorMessage?: string | null;
   isDisconnectConfirming?: boolean;
+  onConnect: (request: GarminConnectionRequest) => void;
   onManualSync: () => void;
   onDisconnectRequest: () => void;
   onDisconnectCancel: () => void;
@@ -43,30 +58,75 @@ function manualSyncMessage(result: ManualSyncResponse | null | undefined) {
 
 export function DashboardSourceControls({
   sync,
+  connectStatus = "idle",
+  connectResult,
+  connectErrorMessage,
   manualSyncStatus = "idle",
   manualSyncResult,
   manualSyncErrorMessage,
   disconnectStatus = "idle",
   disconnectErrorMessage,
   isDisconnectConfirming = false,
+  onConnect,
   onManualSync,
   onDisconnectRequest,
   onDisconnectCancel,
   onDisconnectConfirm,
 }: DashboardSourceControlsProps) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [useChinaRegion, setUseChinaRegion] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(
+    null,
+  );
   const hasConnectedSource = sync.connected_sources > 0;
   const hasActiveSource = sync.active_sources > 0;
   const latestSyncRunning = sync.latest_sync_status === "running";
+  const isConnectPending = connectStatus === "pending";
   const isManualSyncPending = manualSyncStatus === "pending";
   const isDisconnectPending = disconnectStatus === "pending";
+  const connectionRequiresMfa =
+    connectResult?.requires_mfa || connectResult?.status === "mfa_required";
+  const canSubmitConnection =
+    !isConnectPending && !isManualSyncPending && !isDisconnectPending;
   const canManualSync =
     hasConnectedSource &&
     hasActiveSource &&
     !latestSyncRunning &&
+    !isConnectPending &&
     !isManualSyncPending &&
     !isDisconnectPending;
   const canDisconnect =
-    hasConnectedSource && !isManualSyncPending && !isDisconnectPending;
+    hasConnectedSource &&
+    !isConnectPending &&
+    !isManualSyncPending &&
+    !isDisconnectPending;
+
+  function handleConnectSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedUsername = username.trim();
+    const trimmedMfaCode = mfaCode.trim();
+
+    if (!trimmedUsername || !password) {
+      setValidationMessage("Enter your Garmin username and password.");
+      return;
+    }
+
+    if (connectionRequiresMfa && !trimmedMfaCode) {
+      setValidationMessage("Enter the Garmin verification code.");
+      return;
+    }
+
+    setValidationMessage(null);
+    onConnect({
+      username: trimmedUsername,
+      password,
+      mfa_code: trimmedMfaCode || undefined,
+      is_cn: useChinaRegion,
+    });
+  }
 
   return (
     <Card>
@@ -74,7 +134,7 @@ export function DashboardSourceControls({
         <div>
           <CardTitle>Source actions</CardTitle>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Start a bounded sync or disconnect Garmin from this app.
+            Connect Garmin, start a bounded sync, or disconnect this app.
           </p>
         </div>
         <Badge variant={hasActiveSource ? "secondary" : "outline"}>
@@ -82,6 +142,138 @@ export function DashboardSourceControls({
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
+        <form
+          className="rounded-md border border-border p-3"
+          onSubmit={handleConnectSubmit}
+        >
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-sm font-medium">Connect Garmin</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                Use your Garmin credentials once to create an app session.
+                Credentials are submitted to the API for connection setup and
+                are not displayed after submission.
+              </p>
+            </div>
+            {hasActiveSource ? (
+              <Badge variant="secondary">Connected</Badge>
+            ) : (
+              <Badge variant="outline">Not connected</Badge>
+            )}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="garmin-username">Garmin username</Label>
+              <Input
+                id="garmin-username"
+                name="username"
+                type="email"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                disabled={!canSubmitConnection}
+                aria-invalid={validationMessage ? true : undefined}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="garmin-password">Garmin password</Label>
+              <Input
+                id="garmin-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={!canSubmitConnection}
+                aria-invalid={validationMessage ? true : undefined}
+              />
+            </div>
+          </div>
+
+          {connectionRequiresMfa ? (
+            <div className="mt-3 space-y-2">
+              <Label htmlFor="garmin-mfa-code">Garmin verification code</Label>
+              <Input
+                id="garmin-mfa-code"
+                name="mfa_code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={(event) => setMfaCode(event.target.value)}
+                disabled={!canSubmitConnection}
+                aria-invalid={validationMessage ? true : undefined}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={useChinaRegion}
+                onChange={(event) => setUseChinaRegion(event.target.checked)}
+                disabled={!canSubmitConnection}
+              />
+              Use Garmin China region
+            </label>
+            <Button type="submit" disabled={!canSubmitConnection}>
+              {isConnectPending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <PlugZap aria-hidden="true" />
+              )}
+              {connectionRequiresMfa ? "Verify and connect" : "Connect Garmin"}
+            </Button>
+          </div>
+
+          {validationMessage ? (
+            <p className="mt-3 text-sm text-destructive">
+              {validationMessage}
+            </p>
+          ) : null}
+
+          {hasActiveSource ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Submitting this form replaces the saved Garmin app session.
+            </p>
+          ) : null}
+        </form>
+
+        {connectStatus === "success" && connectionRequiresMfa ? (
+          <Alert>
+            <LockKeyhole aria-hidden="true" />
+            <AlertTitle>Garmin verification required</AlertTitle>
+            <AlertDescription>
+              {connectResult?.message ??
+                "Enter the verification code from Garmin to finish connecting."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {connectStatus === "success" && !connectionRequiresMfa ? (
+          <Alert>
+            <CheckCircle2 aria-hidden="true" />
+            <AlertTitle>Garmin connected</AlertTitle>
+            <AlertDescription>
+              {connectResult?.display_name
+                ? `${connectResult.display_name} is connected. Dashboard data is refreshing.`
+                : "Garmin is connected. Dashboard data is refreshing."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {connectStatus === "error" ? (
+          <Alert variant="destructive">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>Garmin connection failed</AlertTitle>
+            <AlertDescription>
+              {connectErrorMessage ?? "Garmin could not be connected."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-md border border-border p-3">
             <div className="flex items-start justify-between gap-3">

@@ -9,6 +9,7 @@ import {
 
 import { dashboardQueryKeys } from "@/hooks/useDashboard";
 import {
+  connectGarmin,
   deleteAccountData,
   deleteSyncedData,
   disconnectGarmin,
@@ -16,6 +17,8 @@ import {
   type DeleteAccountDataResponse,
   type DeleteSyncedDataResponse,
   type DisconnectGarminResponse,
+  type GarminConnectionRequest,
+  type GarminConnectionResponse,
   type ManualSyncRequest,
   type ManualSyncResponse,
 } from "@/lib/api/dataControls";
@@ -42,6 +45,26 @@ export function useManualSyncMutation(
     mutationFn: (request) => triggerManualSync(request),
     onSuccess: async (data, variables, onMutateResult, context) => {
       await invalidateDashboardData(queryClient);
+      await options?.onSuccess?.(data, variables, onMutateResult, context);
+    },
+  });
+}
+
+export function useConnectGarminMutation(
+  options?: DataControlMutationOptions<
+    GarminConnectionResponse,
+    GarminConnectionRequest
+  >,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...options,
+    mutationFn: connectGarmin,
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      if (!data.requires_mfa) {
+        await invalidateDashboardData(queryClient);
+      }
       await options?.onSuccess?.(data, variables, onMutateResult, context);
     },
   });

@@ -23,6 +23,23 @@ export type ManualSyncResponse = {
   completed_at: IsoDateTimeString | null;
 };
 
+export type GarminConnectionRequest = {
+  username: string;
+  password: string;
+  mfa_code?: string;
+  is_cn?: boolean;
+};
+
+export type GarminConnectionResponse = {
+  id: string | null;
+  source: string;
+  status: string;
+  provider_subject_id: string | null;
+  display_name: string | null;
+  requires_mfa: boolean;
+  message: string | null;
+};
+
 export type DisconnectGarminResponse = {
   id: string;
   source: string;
@@ -56,6 +73,26 @@ export function triggerManualSync(request: ManualSyncRequest = {}) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(request),
+  });
+}
+
+export function connectGarmin(request: GarminConnectionRequest) {
+  const body: GarminConnectionRequest = {
+    username: request.username,
+    password: request.password,
+    is_cn: request.is_cn ?? false,
+  };
+
+  if (request.mfa_code) {
+    body.mfa_code = request.mfa_code;
+  }
+
+  return apiFetchJson<GarminConnectionResponse>("/connections/garmin", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
 }
 
