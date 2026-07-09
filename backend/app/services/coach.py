@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from hashlib import sha256
+from json import dumps
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai import AIProviderError, CoachProvider, CoachProviderRequest, get_coach_provider
+from app.models import CoachInsight, SyncRun
 from app.schemas.coach import CoachInsightOutput, CoachReadinessLevel
 from app.services.coach_safety import (
     CoachSafetyAssessment,
@@ -16,6 +21,7 @@ from app.services.coach_safety import (
 from app.services.metric_summary import CoachMetricSummary, build_coach_metric_summary
 
 COACH_DAILY_PROMPT_VERSION = "daily-v1"
+COACH_DAILY_INSIGHT_TYPE = "daily_recovery"
 
 
 class GeneratedCoachInsight(BaseModel):
@@ -62,6 +68,72 @@ def generate_coach_insight(
     )
 
 
+def generate_and_persist_coach_insight(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    as_of_date: date | None = None,
+    user_notes: list[str] | None = None,
+    provider: CoachProvider | None = None,
+    prompt_version: str = COACH_DAILY_PROMPT_VERSION,
+    generated_at: datetime | None = None,
+    insight_type: str = COACH_DAILY_INSIGHT_TYPE,
+    source_sync_run: SyncRun | None = None,
+) -> CoachInsight:
+    generated = generate_coach_insight(
+        db,
+        user_id=user_id,
+        as_of_date=as_of_date,
+        user_notes=user_notes,
+        provider=provider,
+        prompt_version=prompt_version,
+        generated_at=generated_at,
+    )
+    return persist_generated_coach_insight(
+        db,
+        generated=generated,
+        insight_type=insight_type,
+        source_sync_run=source_sync_run,
+    )
+
+
+def persist_generated_coach_insight(
+    db: Session,
+    *,
+    generated: GeneratedCoachInsight,
+    insight_type: str = COACH_DAILY_INSIGHT_TYPE,
+    source_sync_run: SyncRun | None = None,
+) -> CoachInsight:
+    user_id = generated.metric_summary.user_id
+    if source_sync_run is not None and source_sync_run.user_id != user_id:
+        raise ValueError("source_sync_run must belong to the generated insight user")
+
+    insight_date = generated.metric_summary.as_of_date
+    existing = db.scalar(
+        select(CoachInsight).where(
+            CoachInsight.user_id == user_id,
+            CoachInsight.insight_date == insight_date,
+            CoachInsight.insight_type == insight_type,
+        )
+    )
+    values = _coach_insight_values(
+        generated,
+        insight_type=insight_type,
+        source_sync_run=source_sync_run,
+    )
+
+    if existing is None:
+        coach_insight = CoachInsight(**values)
+        db.add(coach_insight)
+    else:
+        coach_insight = existing
+        for field_name, value in values.items():
+            setattr(coach_insight, field_name, value)
+
+    db.flush()
+    return coach_insight
+
+
 def _validated_service_output(
     insight: CoachInsightOutput,
     *,
@@ -82,6 +154,42 @@ def _validated_service_output(
         return CoachInsightOutput.model_validate(final_output.model_dump())
     except ValidationError as error:
         raise AIProviderError("coach service output failed validation") from error
+
+
+def _coach_insight_values(
+    generated: GeneratedCoachInsight,
+    *,
+    insight_type: str,
+    source_sync_run: SyncRun | None,
+) -> dict[str, Any]:
+    insight = generated.insight
+    return {
+        "user_id": generated.metric_summary.user_id,
+        "source_sync_run_id": source_sync_run.id if source_sync_run is not None else None,
+        "source_sync_run": source_sync_run,
+        "insight_date": generated.metric_summary.as_of_date,
+        "insight_type": insight_type,
+        "title": insight.title,
+        "summary": insight.summary,
+        "recommendation": insight.recommendation,
+        "schema_version": insight.schema_version,
+        "model_provider": insight.model_metadata.provider,
+        "model_name": insight.model_metadata.model_name,
+        "prompt_version": insight.prompt_version,
+        "input_fingerprint": _input_fingerprint(generated),
+        "output": insight.model_dump(mode="json"),
+        "generated_at": insight.model_metadata.generated_at,
+    }
+
+
+def _input_fingerprint(generated: GeneratedCoachInsight) -> str:
+    payload = {
+        "metric_summary": generated.metric_summary.model_dump(mode="json"),
+        "safety_assessment": generated.safety_assessment.model_dump(mode="json"),
+        "prompt_version": generated.insight.prompt_version,
+    }
+    encoded = dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return f"sha256:{sha256(encoded).hexdigest()}"
 
 
 def _validate_text(output: CoachInsightOutput) -> None:

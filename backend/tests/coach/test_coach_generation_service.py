@@ -18,6 +18,7 @@ from app.models import (
     DailyMetric,
     SleepSession,
     SourceConnection,
+    SyncRun,
 )
 from app.schemas.coach import (
     CoachInsightOutput,
@@ -25,7 +26,7 @@ from app.schemas.coach import (
     CoachReadinessLevel,
     CoachRiskFlag,
 )
-from app.services.coach import generate_coach_insight
+from app.services.coach import generate_and_persist_coach_insight, generate_coach_insight
 
 
 def _create_session() -> Session:
@@ -39,9 +40,10 @@ def _create_session() -> Session:
 
 
 def _create_user_and_connection(session: Session) -> tuple[AppUser, SourceConnection]:
+    user_key = uuid.uuid4()
     user = AppUser(
-        better_auth_user_id=f"better-auth-{uuid.uuid4()}",
-        email="coach-service@example.com",
+        better_auth_user_id=f"better-auth-{user_key}",
+        email=f"coach-service-{user_key}@example.com",
         display_name="Coach Service Runner",
     )
     connection = SourceConnection(
@@ -139,6 +141,51 @@ class _TooOptimisticProvider:
         )
 
 
+class _StaticProvider:
+    provider_name = "test"
+    model_name = "static"
+
+    def __init__(self, *, title: str) -> None:
+        self._title = title
+
+    def generate_insight(self, request: CoachProviderRequest) -> CoachInsightOutput:
+        return CoachInsightOutput(
+            readiness_level=CoachReadinessLevel.STEADY,
+            title=self._title,
+            summary="Recent training data supports a controlled day.",
+            recommendation="Keep the next session easy to moderate.",
+            risk_flags=request.safety_assessment.risk_flags,
+            confidence=Decimal("0.60"),
+            prompt_version=request.prompt_version,
+            model_metadata=CoachModelMetadata(
+                provider=self.provider_name,
+                model_name=self.model_name,
+                response_id=f"static-{self._title}",
+                generated_at=request.generated_at,
+            ),
+        )
+
+
+def _create_sync_run(
+    session: Session,
+    *,
+    user: AppUser,
+    connection: SourceConnection,
+    status: str = "succeeded",
+) -> SyncRun:
+    sync_run = SyncRun(
+        user=user,
+        source_connection=connection,
+        status=status,
+        sync_type="scheduled",
+        records_seen=3,
+        records_imported=3,
+    )
+    session.add(sync_run)
+    session.flush()
+    return sync_run
+
+
 def test_generate_coach_insight_composes_summary_safety_and_mock_provider() -> None:
     session = _create_session()
     as_of_date = date(2026, 7, 9)
@@ -209,3 +256,127 @@ def test_generate_coach_insight_applies_safety_limits_after_provider_output() ->
     ]
     assert result.insight.readiness_level is CoachReadinessLevel.CAUTION
     assert result.insight.prompt_version == "daily-test"
+
+
+def test_generate_and_persist_coach_insight_creates_row_linked_to_sync_run() -> None:
+    session = _create_session()
+    as_of_date = date(2026, 7, 9)
+    generated_at = datetime(2026, 7, 9, 8, 30, tzinfo=UTC)
+
+    try:
+        user, connection = _create_user_and_connection(session)
+        connection.provider_subject_id = "garmin-user-1"
+        connection.connection_metadata = {"region": "gb"}
+        _seed_healthy_training_data(
+            session,
+            user=user,
+            connection=connection,
+            as_of_date=as_of_date,
+        )
+        sync_run = _create_sync_run(session, user=user, connection=connection)
+        session.commit()
+
+        coach_insight = generate_and_persist_coach_insight(
+            session,
+            user_id=user.id,
+            as_of_date=as_of_date,
+            provider=MockCoachProvider(),
+            generated_at=generated_at,
+            source_sync_run=sync_run,
+        )
+        persisted_count = session.scalar(select(func.count()).select_from(CoachInsight))
+        linked_source = coach_insight.source_sync_run.source_connection.source
+        linked_provider_subject_id = (
+            coach_insight.source_sync_run.source_connection.provider_subject_id
+        )
+    finally:
+        session.close()
+
+    assert persisted_count == 1
+    assert coach_insight.user_id == user.id
+    assert coach_insight.source_sync_run_id == sync_run.id
+    assert linked_source == "garmin"
+    assert linked_provider_subject_id == "garmin-user-1"
+    assert coach_insight.insight_date == as_of_date
+    assert coach_insight.insight_type == "daily_recovery"
+    assert coach_insight.title == "Ready for a steady training day"
+    assert coach_insight.model_provider == "mock"
+    assert coach_insight.model_name == "deterministic-coach"
+    assert coach_insight.prompt_version == "daily-v1"
+    assert coach_insight.input_fingerprint is not None
+    assert coach_insight.input_fingerprint.startswith("sha256:")
+    assert coach_insight.output["readiness_level"] == "strong"
+    assert coach_insight.generated_at == generated_at
+
+
+def test_generate_and_persist_coach_insight_replaces_existing_user_date_type() -> None:
+    session = _create_session()
+    as_of_date = date(2026, 7, 9)
+    first_generated_at = datetime(2026, 7, 9, 8, 30, tzinfo=UTC)
+    second_generated_at = datetime(2026, 7, 9, 9, 45, tzinfo=UTC)
+
+    try:
+        user, connection = _create_user_and_connection(session)
+        first_sync_run = _create_sync_run(session, user=user, connection=connection)
+        second_sync_run = _create_sync_run(session, user=user, connection=connection)
+        session.commit()
+
+        first = generate_and_persist_coach_insight(
+            session,
+            user_id=user.id,
+            as_of_date=as_of_date,
+            provider=_StaticProvider(title="First generated insight"),
+            generated_at=first_generated_at,
+            source_sync_run=first_sync_run,
+        )
+        first_id = first.id
+        first_fingerprint = first.input_fingerprint
+
+        second = generate_and_persist_coach_insight(
+            session,
+            user_id=user.id,
+            as_of_date=as_of_date,
+            provider=_StaticProvider(title="Replacement generated insight"),
+            generated_at=second_generated_at,
+            source_sync_run=second_sync_run,
+        )
+        persisted_count = session.scalar(select(func.count()).select_from(CoachInsight))
+    finally:
+        session.close()
+
+    assert persisted_count == 1
+    assert second.id == first_id
+    assert second.title == "Replacement generated insight"
+    assert second.source_sync_run_id == second_sync_run.id
+    assert second.generated_at == second_generated_at
+    assert second.input_fingerprint == first_fingerprint
+
+
+def test_generate_and_persist_coach_insight_rejects_sync_run_for_other_user() -> None:
+    session = _create_session()
+    as_of_date = date(2026, 7, 9)
+
+    try:
+        user, _connection = _create_user_and_connection(session)
+        other_user, other_connection = _create_user_and_connection(session)
+        other_sync_run = _create_sync_run(
+            session,
+            user=other_user,
+            connection=other_connection,
+        )
+        session.commit()
+
+        try:
+            generate_and_persist_coach_insight(
+                session,
+                user_id=user.id,
+                as_of_date=as_of_date,
+                provider=_StaticProvider(title="Wrong sync run"),
+                source_sync_run=other_sync_run,
+            )
+        except ValueError as error:
+            assert "source_sync_run must belong" in str(error)
+        else:
+            raise AssertionError("expected source sync run ownership validation")
+    finally:
+        session.close()
