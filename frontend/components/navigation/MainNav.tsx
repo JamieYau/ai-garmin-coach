@@ -8,6 +8,7 @@ import {
   Brain,
   DatabaseZap,
   Home,
+  Settings,
   UserCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/dashboard/recovery", label: "Recovery", icon: Bed },
   { href: "/dashboard/coach", label: "Coach", icon: Brain },
   { href: "/dashboard/sources", label: "Sources", icon: DatabaseZap },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 type NavUser = {
