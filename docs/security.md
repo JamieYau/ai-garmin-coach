@@ -20,6 +20,12 @@ CSRF checks are intentionally enabled in Better Auth. The app keeps origin valid
 
 Better Auth rate limiting is configured through `BETTER_AUTH_RATE_LIMIT_ENABLED`, `BETTER_AUTH_RATE_LIMIT_WINDOW_SECONDS`, and `BETTER_AUTH_RATE_LIMIT_MAX_REQUESTS`. It defaults on in production and off in local development. Before public launch, add infrastructure-level rate limits for `/api/auth/*` and any FastAPI endpoints that trigger Garmin login, sync, or AI generation.
 
+FastAPI also applies process-local fixed-window rate limits to Garmin connection attempts, manual sync requests, and the planned AI insight generation route. Configure these with `RATE_LIMIT_ENABLED`, `GARMIN_CONNECTION_RATE_LIMIT_*`, `MANUAL_SYNC_RATE_LIMIT_*`, and `AI_INSIGHT_RATE_LIMIT_*`. This is baseline MVP abuse protection; horizontally scaled production deployments should enforce the same limits at the edge or through shared infrastructure.
+
+## Request Tracing
+
+FastAPI adds an `X-Request-ID` response header to every request. If the client sends a non-empty `X-Request-ID` up to 128 characters, the backend preserves it; otherwise it generates a UUID. Use this ID for correlating sanitized logs and client-visible failures.
+
 ## Sensitive Material
 
 Garmin session material is stored inside `source_connections.metadata.session_material` as a versioned encrypted envelope. The current MVP encryption strategy uses Fernet with key material derived from `BETTER_AUTH_SECRET`; production deployments must provide a long, randomly generated secret and rotate it through a planned migration because existing connection material depends on it.

@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.5"
     openai_max_output_tokens: int = 1200
+    rate_limit_enabled: bool = True
+    garmin_connection_rate_limit_max_requests: int = 5
+    garmin_connection_rate_limit_window_seconds: int = 60
+    manual_sync_rate_limit_max_requests: int = 3
+    manual_sync_rate_limit_window_seconds: int = 60
+    ai_insight_rate_limit_max_requests: int = 3
+    ai_insight_rate_limit_window_seconds: int = 60
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
