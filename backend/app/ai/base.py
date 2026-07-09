@@ -15,6 +15,10 @@ class AIProviderConfigurationError(ValueError):
     pass
 
 
+class AIProviderError(RuntimeError):
+    pass
+
+
 class CoachProviderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -41,5 +45,9 @@ def get_coach_provider(settings: Settings | None = None) -> CoachProvider:
         from app.ai.mock import MockCoachProvider
 
         return MockCoachProvider()
+    if provider_name == "openai":
+        from app.ai.openai_provider import OpenAICoachProvider
+
+        return OpenAICoachProvider.from_settings(resolved_settings)
 
     raise AIProviderConfigurationError(f"Unsupported AI_PROVIDER: {resolved_settings.ai_provider}")

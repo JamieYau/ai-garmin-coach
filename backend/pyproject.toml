@@ -8,6 +8,7 @@ dependencies = [
     "cryptography>=49.0.0",
     "fastapi>=0.115",
     "garminconnect>=0.3.6",
+    "openai>=2.44.0",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.5",
     "sqlalchemy>=2.0",

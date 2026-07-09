@@ -41,7 +41,7 @@ Required variables are grouped in `.env.example`:
 - PostgreSQL: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`.
 - Auth: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`.
 - Better Auth database: `BETTER_AUTH_DATABASE_URL`.
-- AI provider: `AI_PROVIDER`, `OPENAI_API_KEY`.
+- AI provider: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MAX_OUTPUT_TOKENS`.
 - Garmin local setup: `GARMIN_USERNAME`, `GARMIN_PASSWORD`.
 
 ## Development Commands

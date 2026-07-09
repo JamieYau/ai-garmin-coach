@@ -105,8 +105,8 @@ def test_get_coach_provider_uses_explicit_mock_settings() -> None:
 
 
 def test_get_coach_provider_rejects_unsupported_provider() -> None:
-    with pytest.raises(AIProviderConfigurationError, match="Unsupported AI_PROVIDER: openai"):
-        get_coach_provider(Settings(ai_provider="openai"))
+    with pytest.raises(AIProviderConfigurationError, match="Unsupported AI_PROVIDER: ollama"):
+        get_coach_provider(Settings(ai_provider="ollama"))
 
 
 def test_mock_provider_generates_valid_deterministic_coach_output() -> None:

@@ -1,5 +1,6 @@
 from app.ai.base import (
     AIProviderConfigurationError,
+    AIProviderError,
     CoachProvider,
     CoachProviderRequest,
     get_coach_provider,
@@ -7,6 +8,7 @@ from app.ai.base import (
 
 __all__ = [
     "AIProviderConfigurationError",
+    "AIProviderError",
     "CoachProvider",
     "CoachProviderRequest",
     "get_coach_provider",

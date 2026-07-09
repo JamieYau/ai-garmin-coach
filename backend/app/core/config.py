@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     better_auth_secret: str | None = None
     ai_provider: str = "mock"
     openai_api_key: str | None = None
+    openai_model: str = "gpt-5.5"
+    openai_max_output_tokens: int = 1200
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
