@@ -19,3 +19,9 @@ CSRF checks are intentionally enabled in Better Auth. The app keeps origin valid
 ## Rate Limiting
 
 Better Auth rate limiting is configured through `BETTER_AUTH_RATE_LIMIT_ENABLED`, `BETTER_AUTH_RATE_LIMIT_WINDOW_SECONDS`, and `BETTER_AUTH_RATE_LIMIT_MAX_REQUESTS`. It defaults on in production and off in local development. Before public launch, add infrastructure-level rate limits for `/api/auth/*` and any FastAPI endpoints that trigger Garmin login, sync, or AI generation.
+
+## Sensitive Material
+
+Garmin session material is stored inside `source_connections.metadata.session_material` as a versioned encrypted envelope. The current MVP encryption strategy uses Fernet with key material derived from `BETTER_AUTH_SECRET`; production deployments must provide a long, randomly generated secret and rotate it through a planned migration because existing connection material depends on it.
+
+Backend logs use JSON formatting with recursive redaction for sensitive field names such as passwords, tokens, API keys, cookies, prompts, raw payloads, and Garmin session material. Log messages should still be written as structured fields rather than interpolated secrets; redaction is a guardrail, not permission to log raw health data or provider credentials.

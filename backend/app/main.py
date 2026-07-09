@@ -6,10 +6,12 @@ from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
 from app.api.sync import router as sync_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(title=settings.app_name, version=settings.app_version)
     app.add_middleware(
         CORSMiddleware,

@@ -27,7 +27,7 @@ from app.connectors.garmin.mappers import (
     sleep_session_mapper,
 )
 from app.connectors.garmin.metadata import GARMIN_SOURCE_METADATA
-from app.core.security import decrypt_json_payload, encrypt_json_payload
+from app.core.security import decrypt_sensitive_payload, encrypt_sensitive_payload
 from app.models import (
     Activity,
     BiometricSample,
@@ -315,7 +315,7 @@ class GarminActivitySyncService:
     ) -> None:
         tokenstore = client.dump_tokenstore()
         metadata = dict(source_connection.connection_metadata)
-        metadata["session_material"] = encrypt_json_payload(
+        metadata["session_material"] = encrypt_sensitive_payload(
             {"tokenstore": tokenstore},
             self._encryption_secret,
         )
@@ -354,7 +354,7 @@ class GarminActivitySyncService:
         encrypted = source_connection.connection_metadata.get("session_material")
         if not isinstance(encrypted, dict):
             raise ValueError("Garmin source connection is missing session material")
-        payload = decrypt_json_payload(encrypted, self._encryption_secret)
+        payload = decrypt_sensitive_payload(encrypted, self._encryption_secret)
         tokenstore = payload.get("tokenstore")
         if not isinstance(tokenstore, str) or not tokenstore:
             raise ValueError("Garmin session material is missing tokenstore data")
