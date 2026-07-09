@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from hashlib import sha256
 from json import dumps
@@ -30,6 +31,15 @@ class GeneratedCoachInsight(BaseModel):
     metric_summary: CoachMetricSummary
     safety_assessment: CoachSafetyAssessment
     insight: CoachInsightOutput
+
+
+@dataclass(frozen=True)
+class DailyInsightBatchResult:
+    attempted: int
+    generated: int
+    failed: int
+    skipped_sync_runs: int
+    coach_insights: tuple[CoachInsight, ...]
 
 
 def generate_coach_insight(
@@ -94,6 +104,50 @@ def generate_and_persist_coach_insight(
         generated=generated,
         insight_type=insight_type,
         source_sync_run=source_sync_run,
+    )
+
+
+def generate_daily_insights_for_successful_syncs(
+    db: Session,
+    *,
+    sync_runs: tuple[SyncRun, ...],
+    provider: CoachProvider | None = None,
+    generated_at: datetime | None = None,
+) -> DailyInsightBatchResult:
+    coach_insights: list[CoachInsight] = []
+    attempted = 0
+    failed = 0
+    skipped = 0
+
+    for sync_run in sync_runs:
+        if sync_run.status != "succeeded":
+            skipped += 1
+            continue
+
+        attempted += 1
+        as_of_date = _sync_run_insight_date(sync_run)
+        try:
+            coach_insight = generate_and_persist_coach_insight(
+                db,
+                user_id=sync_run.user_id,
+                as_of_date=as_of_date,
+                provider=provider,
+                generated_at=generated_at,
+                source_sync_run=sync_run,
+            )
+            db.commit()
+            db.refresh(coach_insight)
+            coach_insights.append(coach_insight)
+        except (AIProviderError, ValueError, ValidationError):
+            db.rollback()
+            failed += 1
+
+    return DailyInsightBatchResult(
+        attempted=attempted,
+        generated=len(coach_insights),
+        failed=failed,
+        skipped_sync_runs=skipped,
+        coach_insights=tuple(coach_insights),
     )
 
 
@@ -190,6 +244,14 @@ def _input_fingerprint(generated: GeneratedCoachInsight) -> str:
     }
     encoded = dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return f"sha256:{sha256(encoded).hexdigest()}"
+
+
+def _sync_run_insight_date(sync_run: SyncRun) -> date:
+    if sync_run.window_end is not None:
+        return sync_run.window_end.date()
+    if sync_run.completed_at is not None:
+        return sync_run.completed_at.date()
+    return date.today()
 
 
 def _validate_text(output: CoachInsightOutput) -> None:
