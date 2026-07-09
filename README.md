@@ -148,6 +148,12 @@ on `get_current_app_user` or `get_current_user` from
 `app_users` profile from the Better Auth user record and then scopes API work
 to that local user.
 
+## Security And Data Handling
+
+See `docs/security.md` for the MVP security model, stored data inventory,
+non-stored sensitive values, user data lifecycle routes, and known Garmin API
+limitations.
+
 ## Status
 
 MVP in development
