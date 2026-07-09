@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.models import Base
 from app.jobs.sync import run_scheduled_sync_job, run_scheduled_sync_job_once
-from app.models import AppUser, SourceConnection, SyncRun
+from app.models import AppUser, CoachInsight, SourceConnection, SyncRun
 from app.schemas.connectors import (
     BackfillSyncRequest,
     ConnectorRecordType,
@@ -172,12 +172,13 @@ def test_scheduled_sync_job_runs_active_garmin_connections_and_skips_in_flight(
     garmin_service = FakeGarminSyncService()
     service = ScheduledSyncService(garmin_service)
 
-    result = run_scheduled_sync_job(db, service)
+    result = run_scheduled_sync_job(db, service, generate_insights=False)
 
     assert result.started == 1
     assert result.succeeded == 1
     assert result.failed == 0
     assert result.skipped == 1
+    assert result.insights_generated == 0
     assert garmin_service.calls == ["activities", "daily_sleep", "biometrics"]
     sync_run = db.scalar(
         select(SyncRun).where(
@@ -205,7 +206,7 @@ def test_scheduled_sync_job_records_connector_failure_and_stops_that_connection(
     garmin_service = FakeGarminSyncService(fail_step="daily_sleep")
     service = ScheduledSyncService(garmin_service)
 
-    result = run_scheduled_sync_job(db, service)
+    result = run_scheduled_sync_job(db, service, generate_insights=False)
 
     assert result.started == 1
     assert result.succeeded == 0
@@ -232,7 +233,7 @@ def test_scheduled_sync_job_records_invalid_connection_without_raw_error(
     )
     service = ScheduledSyncService(FakeGarminSyncService(raise_value_error=True))
 
-    result = run_scheduled_sync_job(db, service)
+    result = run_scheduled_sync_job(db, service, generate_insights=False)
 
     assert result.started == 1
     assert result.failed == 1
@@ -258,7 +259,38 @@ def test_scheduled_sync_job_once_uses_supplied_session_factory(db: Session) -> N
     result = run_scheduled_sync_job_once(
         session_factory=test_session_factory,
         service=service,
+        generate_insights=False,
     )
 
     assert result.started == 1
     assert result.succeeded == 1
+
+
+def test_scheduled_sync_job_generates_daily_insight_after_successful_sync(
+    db: Session,
+) -> None:
+    _user, connection = _seed_connection(
+        db,
+        better_auth_user_id="better-auth-user-1",
+        email="runner@example.com",
+    )
+    service = ScheduledSyncService(FakeGarminSyncService())
+
+    result = run_scheduled_sync_job(db, service)
+
+    assert result.started == 1
+    assert result.succeeded == 1
+    assert result.insights_attempted == 1
+    assert result.insights_generated == 1
+    assert result.insights_failed == 0
+    sync_run = db.scalar(
+        select(SyncRun).where(SyncRun.source_connection_id == connection.id)
+    )
+    assert sync_run is not None
+    coach_insight = db.scalar(
+        select(CoachInsight).where(CoachInsight.source_sync_run_id == sync_run.id)
+    )
+    assert coach_insight is not None
+    assert result.coach_insight_ids == (coach_insight.id,)
+    assert coach_insight.user_id == sync_run.user_id
+    assert coach_insight.insight_date == sync_run.window_end.date()
