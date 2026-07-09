@@ -4,6 +4,8 @@ from app.core.config import get_settings
 def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:pass@localhost:5432/app")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-test")
+    monkeypatch.setenv("OPENAI_MAX_OUTPUT_TOKENS", "900")
     monkeypatch.setenv(
         "BACKEND_CORS_ORIGINS",
         "http://localhost:3000,http://localhost:3001",
@@ -18,6 +20,8 @@ def test_settings_load_from_environment(monkeypatch) -> None:
         "http://localhost:3001",
     ]
     assert settings.backend_cors_allow_credentials is True
+    assert settings.openai_model == "gpt-test"
+    assert settings.openai_max_output_tokens == 900
 
 
 def test_require_database_url_rejects_missing_value(monkeypatch) -> None:
