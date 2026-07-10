@@ -121,6 +121,28 @@ def test_garmin_daily_metric_mapper_normalizes_summary_payload() -> None:
     assert record.data["body_battery_latest"] == 62
 
 
+def test_garmin_daily_metric_mapper_treats_negative_sentinel_values_as_missing() -> None:
+    mapper = GarminDailyMetricMapper()
+
+    result = mapper.normalize_daily_metric(
+        {
+            "calendarDate": "2026-07-05",
+            "totalSteps": 12345,
+            "restingHeartRate": -1,
+            "hrvMs": -1,
+            "stressAverage": -1,
+            "bodyBatteryLatest": -1,
+        }
+    )
+
+    record = result.records[0]
+    assert record.data["steps"] == 12345
+    assert record.data["resting_heart_rate"] is None
+    assert record.data["hrv_ms"] is None
+    assert record.data["stress_average"] is None
+    assert record.data["body_battery_latest"] is None
+
+
 def test_garmin_sleep_session_mapper_normalizes_nested_sleep_payload() -> None:
     mapper = GarminSleepSessionMapper()
 

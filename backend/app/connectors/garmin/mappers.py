@@ -228,14 +228,16 @@ class GarminDailyMetricMapper:
         for key in keys:
             value = payload.get(key)
             if value is not None:
-                return int(float(str(value)))
+                parsed = int(float(str(value)))
+                return parsed if parsed >= 0 else None
         return None
 
     def _optional_decimal(self, payload: dict[str, Any], *keys: str) -> Decimal | None:
         for key in keys:
             value = payload.get(key)
             if value is not None:
-                return Decimal(str(value))
+                parsed = Decimal(str(value))
+                return parsed if parsed >= 0 else None
         return None
 
     def _payload_hash(self, payload: dict[str, Any]) -> str:

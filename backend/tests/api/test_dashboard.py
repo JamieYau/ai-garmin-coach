@@ -512,7 +512,10 @@ def test_dashboard_recovery_metrics_returns_windowed_current_user_records() -> N
                 metric_date=today,
                 steps=11000,
                 active_seconds=4200,
-                resting_heart_rate=48,
+                resting_heart_rate=-1,
+                hrv_ms=Decimal("-1.00"),
+                stress_average=Decimal("-1.00"),
+                body_battery_latest=-1,
                 raw_data={},
             ),
             DailyMetric(
@@ -558,6 +561,10 @@ def test_dashboard_recovery_metrics_returns_windowed_current_user_records() -> N
         "body_battery_latest": 74,
     }
     assert body["metrics"][1]["steps"] == 11000
+    assert body["metrics"][1]["resting_heart_rate"] is None
+    assert body["metrics"][1]["hrv_ms"] is None
+    assert body["metrics"][1]["stress_average"] is None
+    assert body["metrics"][1]["body_battery_latest"] is None
 
 
 def test_dashboard_latest_coach_insight_returns_latest_current_user_detail() -> None:
