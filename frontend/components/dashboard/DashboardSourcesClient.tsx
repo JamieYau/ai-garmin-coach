@@ -1,9 +1,44 @@
 "use client";
 
+import { useState } from "react";
+
+import { DashboardSourceControls } from "@/components/dashboard/DashboardSourceControls";
 import { DashboardSources } from "@/components/dashboard/DashboardSources";
 import { ErrorState, Skeleton } from "@/components/states";
+import {
+  useConnectGarminMutation,
+  useDisconnectGarminMutation,
+  useManualSyncMutation,
+} from "@/hooks/useDataControls";
 import { useDashboardOverviewQuery } from "@/hooks/useDashboard";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { isApiError } from "@/lib/api/errors";
+
+function dataControlErrorMessage(error: unknown, action: string) {
+  if (isApiError(error) && error.status === 429) {
+    return "Too many requests. Wait a minute and try again.";
+  }
+
+  return getApiErrorMessage(error, `${action} failed. Try again.`);
+}
+
+function garminConnectionErrorMessage(error: unknown) {
+  if (isApiError(error)) {
+    if (error.status === 429) {
+      return "Too many Garmin connection attempts. Wait a minute and try again.";
+    }
+
+    if (error.status === 401) {
+      return "Garmin credentials were not accepted. Check the username and password, then try again.";
+    }
+
+    if (error.status === 502) {
+      return "Garmin is temporarily unavailable. Try again later.";
+    }
+  }
+
+  return getApiErrorMessage(error, "Garmin could not be connected.");
+}
 
 function DashboardSourcesSkeleton() {
   return (
@@ -47,6 +82,14 @@ function DashboardSourcesSkeleton() {
 
 export function DashboardSourcesClient() {
   const overviewQuery = useDashboardOverviewQuery();
+  const [isDisconnectConfirming, setIsDisconnectConfirming] = useState(false);
+  const connectMutation = useConnectGarminMutation();
+  const manualSyncMutation = useManualSyncMutation();
+  const disconnectMutation = useDisconnectGarminMutation({
+    onSuccess: () => {
+      setIsDisconnectConfirming(false);
+    },
+  });
 
   if (overviewQuery.isPending) {
     return <DashboardSourcesSkeleton />;
@@ -65,5 +108,36 @@ export function DashboardSourcesClient() {
     );
   }
 
-  return <DashboardSources overview={overviewQuery.data} />;
+  return (
+    <DashboardSources
+      overview={overviewQuery.data}
+      actions={
+        <DashboardSourceControls
+          sync={overviewQuery.data.sync}
+          connectStatus={connectMutation.status}
+          connectResult={connectMutation.data}
+          connectErrorMessage={garminConnectionErrorMessage(
+            connectMutation.error,
+          )}
+          manualSyncStatus={manualSyncMutation.status}
+          manualSyncResult={manualSyncMutation.data}
+          manualSyncErrorMessage={dataControlErrorMessage(
+            manualSyncMutation.error,
+            "Manual sync",
+          )}
+          disconnectStatus={disconnectMutation.status}
+          disconnectErrorMessage={dataControlErrorMessage(
+            disconnectMutation.error,
+            "Disconnect",
+          )}
+          isDisconnectConfirming={isDisconnectConfirming}
+          onConnect={(request) => connectMutation.mutate(request)}
+          onManualSync={() => manualSyncMutation.mutate({ source: "garmin" })}
+          onDisconnectRequest={() => setIsDisconnectConfirming(true)}
+          onDisconnectCancel={() => setIsDisconnectConfirming(false)}
+          onDisconnectConfirm={() => disconnectMutation.mutate()}
+        />
+      }
+    />
+  );
 }

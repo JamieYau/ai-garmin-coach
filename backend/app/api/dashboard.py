@@ -46,6 +46,18 @@ def _decimal_or_none(value: Decimal | None) -> Decimal | None:
     return value if value is not None else None
 
 
+def _non_negative_int_or_none(value: int | None) -> int | None:
+    if value is None or value < 0:
+        return None
+    return value
+
+
+def _non_negative_decimal_or_none(value: Decimal | None) -> Decimal | None:
+    if value is None or value < 0:
+        return None
+    return value
+
+
 def _insight_summary(insight: CoachInsight) -> DashboardInsightSummary:
     return DashboardInsightSummary(
         id=str(insight.id),
@@ -153,16 +165,26 @@ def get_dashboard_overview(
         ),
         recovery=DashboardRecoverySummary(
             metric_date=latest_metric.metric_date if latest_metric is not None else None,
-            steps=latest_metric.steps if latest_metric is not None else None,
-            active_seconds=latest_metric.active_seconds if latest_metric is not None else None,
-            resting_heart_rate=latest_metric.resting_heart_rate
+            steps=(
+                _non_negative_int_or_none(latest_metric.steps)
+                if latest_metric is not None
+                else None
+            ),
+            active_seconds=_non_negative_int_or_none(latest_metric.active_seconds)
             if latest_metric is not None
             else None,
-            hrv_ms=latest_metric.hrv_ms if latest_metric is not None else None,
-            body_battery_latest=latest_metric.body_battery_latest
+            resting_heart_rate=_non_negative_int_or_none(latest_metric.resting_heart_rate)
             if latest_metric is not None
             else None,
-            stress_average=latest_metric.stress_average if latest_metric is not None else None,
+            hrv_ms=_non_negative_decimal_or_none(latest_metric.hrv_ms)
+            if latest_metric is not None
+            else None,
+            body_battery_latest=_non_negative_int_or_none(latest_metric.body_battery_latest)
+            if latest_metric is not None
+            else None,
+            stress_average=_non_negative_decimal_or_none(latest_metric.stress_average)
+            if latest_metric is not None
+            else None,
         ),
         sleep=DashboardSleepSummary(
             sleep_date=latest_sleep.sleep_date if latest_sleep is not None else None,
@@ -281,15 +303,15 @@ def get_recovery_metrics(
         metrics=[
             DashboardRecoveryMetricPoint(
                 metric_date=metric.metric_date,
-                steps=metric.steps,
-                active_seconds=metric.active_seconds,
-                highly_active_seconds=metric.highly_active_seconds,
-                resting_heart_rate=metric.resting_heart_rate,
-                hrv_ms=metric.hrv_ms,
-                stress_average=metric.stress_average,
-                body_battery_min=metric.body_battery_min,
-                body_battery_max=metric.body_battery_max,
-                body_battery_latest=metric.body_battery_latest,
+                steps=_non_negative_int_or_none(metric.steps),
+                active_seconds=_non_negative_int_or_none(metric.active_seconds),
+                highly_active_seconds=_non_negative_int_or_none(metric.highly_active_seconds),
+                resting_heart_rate=_non_negative_int_or_none(metric.resting_heart_rate),
+                hrv_ms=_non_negative_decimal_or_none(metric.hrv_ms),
+                stress_average=_non_negative_decimal_or_none(metric.stress_average),
+                body_battery_min=_non_negative_int_or_none(metric.body_battery_min),
+                body_battery_max=_non_negative_int_or_none(metric.body_battery_max),
+                body_battery_latest=_non_negative_int_or_none(metric.body_battery_latest),
             )
             for metric in metrics
         ],

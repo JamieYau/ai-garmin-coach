@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_app_user
@@ -17,8 +18,29 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.models import AppUser
 from app.schemas.connections import ConnectionResponse, GarminConnectionCreate
+from app.services.data_lifecycle import (
+    DisconnectSourceResult,
+    SourceConnectionNotFoundError,
+    disconnect_source,
+)
 
 router = APIRouter(prefix="/connections", tags=["connections"])
+
+
+class DisconnectSourceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    source: str
+    status: str
+
+    @classmethod
+    def from_result(cls, result: DisconnectSourceResult) -> DisconnectSourceResponse:
+        return cls(
+            id=str(result.source_connection_id),
+            source=result.source,
+            status=result.status,
+        )
 
 
 def get_garmin_connection_service(
@@ -58,3 +80,18 @@ def connect_garmin(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Garmin connection failed",
         ) from exc
+
+
+@router.delete("/garmin", response_model=DisconnectSourceResponse)
+def disconnect_garmin(
+    current_user: Annotated[AppUser, Depends(get_current_app_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> DisconnectSourceResponse:
+    try:
+        result = disconnect_source(db, current_user, source="garmin")
+    except SourceConnectionNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source connection not found",
+        ) from exc
+    return DisconnectSourceResponse.from_result(result)

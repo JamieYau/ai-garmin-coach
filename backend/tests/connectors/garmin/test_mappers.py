@@ -121,6 +121,28 @@ def test_garmin_daily_metric_mapper_normalizes_summary_payload() -> None:
     assert record.data["body_battery_latest"] == 62
 
 
+def test_garmin_daily_metric_mapper_treats_negative_sentinel_values_as_missing() -> None:
+    mapper = GarminDailyMetricMapper()
+
+    result = mapper.normalize_daily_metric(
+        {
+            "calendarDate": "2026-07-05",
+            "totalSteps": 12345,
+            "restingHeartRate": -1,
+            "hrvMs": -1,
+            "stressAverage": -1,
+            "bodyBatteryLatest": -1,
+        }
+    )
+
+    record = result.records[0]
+    assert record.data["steps"] == 12345
+    assert record.data["resting_heart_rate"] is None
+    assert record.data["hrv_ms"] is None
+    assert record.data["stress_average"] is None
+    assert record.data["body_battery_latest"] is None
+
+
 def test_garmin_sleep_session_mapper_normalizes_nested_sleep_payload() -> None:
     mapper = GarminSleepSessionMapper()
 
@@ -159,6 +181,53 @@ def test_garmin_sleep_session_mapper_normalizes_nested_sleep_payload() -> None:
     assert record.data["sleep_score"] == 82
     assert record.data["average_spo2"] == Decimal("96.2")
     assert record.data["average_hrv_ms"] == Decimal("47.5")
+
+
+def test_garmin_sleep_session_mapper_accepts_epoch_millisecond_timestamps() -> None:
+    mapper = GarminSleepSessionMapper()
+
+    result = mapper.normalize_sleep_session(
+        {
+            "dailySleepDTO": {
+                "id": 556,
+                "calendarDate": "2026-07-05",
+                "sleepStartTimestampGMT": 1783205100000,
+                "sleepEndTimestampGMT": "1783233000000",
+                "sleepTimeSeconds": 27900,
+            },
+        }
+    )
+
+    assert result.raw_payload.observed_at == datetime(2026, 7, 4, 22, 45, tzinfo=UTC)
+    assert result.records[0].data["started_at"] == datetime(2026, 7, 4, 22, 45, tzinfo=UTC)
+    assert result.records[0].data["ended_at"] == datetime(2026, 7, 5, 6, 30, tzinfo=UTC)
+
+
+def test_garmin_sleep_session_mapper_keeps_raw_payload_when_no_sleep_session() -> None:
+    mapper = GarminSleepSessionMapper()
+
+    result = mapper.normalize_sleep_session(
+        {
+            "dailySleepDTO": {
+                "calendarDate": "2026-07-05",
+            },
+            "sleepScores": {},
+        }
+    )
+
+    assert result.raw_payload.object_type == "sleep_session"
+    assert result.raw_payload.object_id == "2026-07-05"
+    assert result.raw_payload.observed_at == datetime(
+        2026,
+        7,
+        5,
+        23,
+        59,
+        59,
+        999999,
+        tzinfo=UTC,
+    )
+    assert result.records == []
 
 
 def test_garmin_daily_and_sleep_mappers_reject_missing_dates() -> None:

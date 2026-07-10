@@ -10,6 +10,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Request
 
 REDACTED_VALUE = "[redacted]"
+SENSITIVE_PAYLOAD_SCHEMA_VERSION = 1
+SENSITIVE_PAYLOAD_ALGORITHM = "fernet-sha256"
 BETTER_AUTH_SESSION_COOKIE_NAME = "better-auth.session_token"
 BETTER_AUTH_SECURE_SESSION_COOKIE_NAME = "__Secure-better-auth.session_token"
 
@@ -31,17 +33,21 @@ def _fernet_for_secret(secret: str) -> Fernet:
 
 
 def encrypt_json_payload(payload: dict[str, Any], secret: str) -> dict[str, str | int]:
+    """Encrypt a JSON object for storage in database metadata fields."""
     plaintext = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ciphertext = _fernet_for_secret(secret).encrypt(plaintext).decode("ascii")
     return {
-        "schema_version": 1,
-        "algorithm": "fernet-sha256",
+        "schema_version": SENSITIVE_PAYLOAD_SCHEMA_VERSION,
+        "algorithm": SENSITIVE_PAYLOAD_ALGORITHM,
         "ciphertext": ciphertext,
     }
 
 
 def decrypt_json_payload(envelope: dict[str, Any], secret: str) -> dict[str, Any]:
-    if envelope.get("schema_version") != 1 or envelope.get("algorithm") != "fernet-sha256":
+    if (
+        envelope.get("schema_version") != SENSITIVE_PAYLOAD_SCHEMA_VERSION
+        or envelope.get("algorithm") != SENSITIVE_PAYLOAD_ALGORITHM
+    ):
         raise ValueError("Unsupported encrypted payload envelope")
 
     ciphertext = envelope.get("ciphertext")
@@ -57,6 +63,16 @@ def decrypt_json_payload(envelope: dict[str, Any], secret: str) -> dict[str, Any
     if not isinstance(decoded, dict):
         raise ValueError("Encrypted payload did not contain a JSON object")
     return decoded
+
+
+def encrypt_sensitive_payload(payload: dict[str, Any], secret: str) -> dict[str, str | int]:
+    """Encrypt credentials, tokens, or provider session material before persistence."""
+    return encrypt_json_payload(payload, secret)
+
+
+def decrypt_sensitive_payload(envelope: dict[str, Any], secret: str) -> dict[str, Any]:
+    """Decrypt previously persisted credentials, tokens, or provider session material."""
+    return decrypt_json_payload(envelope, secret)
 
 
 def _sign_cookie_value(value: str, secret: str) -> str:

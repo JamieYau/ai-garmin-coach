@@ -18,7 +18,7 @@ from app.connectors.garmin.client import (
     GarminRateLimitError,
 )
 from app.connectors.garmin.metadata import GARMIN_SOURCE_METADATA
-from app.core.security import encrypt_json_payload
+from app.core.security import encrypt_sensitive_payload
 from app.models import AppUser, SourceConnection
 from app.schemas.connections import ConnectionResponse, GarminConnectionCreate
 
@@ -97,7 +97,7 @@ class GarminConnectionService:
             request=request,
             profile=profile,
             display_name=full_name or self._display_name_from_profile(profile),
-            encrypted_tokenstore=encrypt_json_payload(
+            encrypted_tokenstore=encrypt_sensitive_payload(
                 {"tokenstore": tokenstore},
                 self._settings.encryption_secret,
             ),

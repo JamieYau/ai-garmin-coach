@@ -38,6 +38,7 @@ Required variables are grouped in `.env.example`:
 
 - App runtime: `APP_ENV`, `LOG_LEVEL`.
 - Local ports and URLs: `FRONTEND_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `FRONTEND_URL`, `NEXT_PUBLIC_API_BASE_URL`, `BACKEND_CORS_ORIGINS`.
+- FastAPI abuse protection: `RATE_LIMIT_ENABLED`, `GARMIN_CONNECTION_RATE_LIMIT_*`, `MANUAL_SYNC_RATE_LIMIT_*`, `AI_INSIGHT_RATE_LIMIT_*`.
 - PostgreSQL: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`.
 - Auth: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`.
 - Better Auth database: `BETTER_AUTH_DATABASE_URL`.
@@ -146,6 +147,12 @@ on `get_current_app_user` or `get_current_user` from
 `backend/app/api/dependencies.py`; the dependency creates or updates the local
 `app_users` profile from the Better Auth user record and then scopes API work
 to that local user.
+
+## Security And Data Handling
+
+See `docs/security.md` for the MVP security model, stored data inventory,
+non-stored sensitive values, user data lifecycle routes, and known Garmin API
+limitations.
 
 ## Status
 
