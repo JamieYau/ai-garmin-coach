@@ -154,6 +154,15 @@ See `docs/security.md` for the MVP security model, stored data inventory,
 non-stored sensitive values, user data lifecycle routes, and known Garmin API
 limitations.
 
+## Pull Request Security Checks
+
+Pull requests audit the locked backend dependencies with `pip-audit` and the
+frontend lockfile with `npm audit --audit-level=high`. High- and
+critical-severity frontend findings, plus any backend finding, fail CI.
+Repository maintainers should also enable GitHub secret scanning and push
+protection where available; see `docs/security.md` for handling instructions if
+a secret is exposed.
+
 ## Status
 
 MVP in development
