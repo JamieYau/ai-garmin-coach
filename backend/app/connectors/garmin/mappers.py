@@ -119,11 +119,22 @@ class GarminActivityMapper:
     def _parse_datetime(self, value: Any) -> datetime:
         if isinstance(value, datetime):
             parsed = value
+        elif isinstance(value, int | float):
+            parsed = self._datetime_from_epoch(value)
         else:
-            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            text = str(value).strip()
+            if text.isdigit():
+                parsed = self._datetime_from_epoch(float(text))
+            else:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             return parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
+
+    def _datetime_from_epoch(self, value: int | float) -> datetime:
+        if value > 10_000_000_000:
+            return datetime.fromtimestamp(value / 1000, tz=UTC)
+        return datetime.fromtimestamp(value, tz=UTC)
 
     def _ended_at(self, started_at: datetime, duration_seconds: int) -> datetime:
         return started_at + timedelta(seconds=duration_seconds)
@@ -237,6 +248,10 @@ class GarminSleepSessionMapper:
 
     def normalize_sleep_session(self, sleep: dict[str, Any]) -> NormalizationResult:
         payload = self.to_provider_payload(sleep)
+        sleep_data = self._sleep_data(sleep)
+        if not self._has_sleep_session(sleep_data):
+            return NormalizationResult(raw_payload=payload, records=[])
+
         return NormalizationResult(
             raw_payload=payload,
             records=[
@@ -257,13 +272,15 @@ class GarminSleepSessionMapper:
             or sleep_data.get("dailySleepId")
             or sleep_date.isoformat()
         )
-        observed_at = self._parse_datetime(
-            self._first_value(
-                sleep_data,
-                "sleepStartTimestampGMT",
-                "sleepStartTimestampGmt",
-                "sleepStartTimestampLocal",
-            )
+        observed_at = self._optional_datetime(
+            sleep_data,
+            "sleepStartTimestampGMT",
+            "sleepStartTimestampGmt",
+            "sleepStartTimestampLocal",
+        ) or datetime.combine(
+            sleep_date,
+            datetime.max.time(),
+            tzinfo=UTC,
         )
         return ProviderPayload(
             object_type=self.object_type,
@@ -324,6 +341,31 @@ class GarminSleepSessionMapper:
             return daily_sleep
         return sleep
 
+    def _has_sleep_session(self, sleep: dict[str, Any]) -> bool:
+        return (
+            self._optional_datetime(
+                sleep,
+                "sleepStartTimestampGMT",
+                "sleepStartTimestampGmt",
+                "sleepStartTimestampLocal",
+            )
+            is not None
+            and self._optional_datetime(
+                sleep,
+                "sleepEndTimestampGMT",
+                "sleepEndTimestampGmt",
+                "sleepEndTimestampLocal",
+            )
+            is not None
+            and self._optional_int(
+                sleep,
+                "totalSleepSeconds",
+                "sleepTimeSeconds",
+                "durationInSeconds",
+            )
+            is not None
+        )
+
     def _sleep_score(self, sleep: dict[str, Any]) -> int | None:
         sleep_data = self._sleep_data(sleep)
         direct_score = self._optional_int(sleep_data, "sleepScore")
@@ -343,6 +385,13 @@ class GarminSleepSessionMapper:
                 return value
         raise ValueError(f"Garmin sleep payload missing one of: {', '.join(keys)}")
 
+    def _optional_datetime(self, payload: dict[str, Any], *keys: str) -> datetime | None:
+        for key in keys:
+            value = payload.get(key)
+            if value is not None:
+                return self._parse_datetime(value)
+        return None
+
     def _parse_date(self, value: Any) -> date:
         if isinstance(value, date) and not isinstance(value, datetime):
             return value
@@ -351,11 +400,22 @@ class GarminSleepSessionMapper:
     def _parse_datetime(self, value: Any) -> datetime:
         if isinstance(value, datetime):
             parsed = value
+        elif isinstance(value, int | float):
+            parsed = self._datetime_from_epoch(value)
         else:
-            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            text = str(value).strip()
+            if text.isdigit():
+                parsed = self._datetime_from_epoch(float(text))
+            else:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             return parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
+
+    def _datetime_from_epoch(self, value: int | float) -> datetime:
+        if value > 10_000_000_000:
+            return datetime.fromtimestamp(value / 1000, tz=UTC)
+        return datetime.fromtimestamp(value, tz=UTC)
 
     def _required_int(self, payload: dict[str, Any], *keys: str) -> int:
         value = self._first_value(payload, *keys)

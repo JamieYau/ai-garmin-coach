@@ -333,6 +333,56 @@ def test_garmin_daily_metric_and_sleep_sync_persists_canonical_records() -> None
         assert sync_run.records_imported == 2
 
 
+def test_garmin_daily_metric_and_sleep_sync_skips_days_without_sleep_session() -> None:
+    class NoSleepGarminActivityClient(FakeGarminActivityClient):
+        def get_sleep_data(self, day: date) -> dict[str, Any]:
+            return {
+                "dailySleepDTO": {
+                    "calendarDate": day.isoformat(),
+                },
+                "sleepScores": {},
+            }
+
+    with _create_session() as session:
+        user, connection, sync_run = _seed_sync_context(session)
+        fake_client = NoSleepGarminActivityClient([])
+        service = GarminActivitySyncService(
+            encryption_secret="test-secret",
+            client_builder=lambda is_cn: fake_client,
+        )
+
+        result = service.sync_backfill_daily_metrics_and_sleep(
+            session,
+            BackfillSyncRequest(
+                user_id=user.id,
+                source_connection_id=connection.id,
+                sync_run_id=sync_run.id,
+                start_date=date(2026, 7, 5),
+                end_date=date(2026, 7, 5),
+            ),
+        )
+
+        metric = session.scalar(
+            select(DailyMetric).where(DailyMetric.metric_date == date(2026, 7, 5))
+        )
+        sleep = session.scalar(select(SleepSession))
+        raw_observations = session.scalars(select(RawObservation)).all()
+        session.refresh(sync_run)
+
+        assert result.status is SyncStatus.SUCCEEDED
+        assert result.raw_payload_count == 2
+        assert result.normalized_record_count == 1
+        assert metric is not None
+        assert sleep is None
+        assert {raw.provider_object_type for raw in raw_observations} == {
+            "daily_metric",
+            "sleep_session",
+        }
+        assert sync_run.status == "succeeded"
+        assert sync_run.records_seen == 2
+        assert sync_run.records_imported == 1
+
+
 def test_garmin_daily_metric_and_sleep_sync_is_idempotent() -> None:
     with _create_session() as session:
         user, connection, sync_run = _seed_sync_context(session)

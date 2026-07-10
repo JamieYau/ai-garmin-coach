@@ -161,6 +161,53 @@ def test_garmin_sleep_session_mapper_normalizes_nested_sleep_payload() -> None:
     assert record.data["average_hrv_ms"] == Decimal("47.5")
 
 
+def test_garmin_sleep_session_mapper_accepts_epoch_millisecond_timestamps() -> None:
+    mapper = GarminSleepSessionMapper()
+
+    result = mapper.normalize_sleep_session(
+        {
+            "dailySleepDTO": {
+                "id": 556,
+                "calendarDate": "2026-07-05",
+                "sleepStartTimestampGMT": 1783205100000,
+                "sleepEndTimestampGMT": "1783233000000",
+                "sleepTimeSeconds": 27900,
+            },
+        }
+    )
+
+    assert result.raw_payload.observed_at == datetime(2026, 7, 4, 22, 45, tzinfo=UTC)
+    assert result.records[0].data["started_at"] == datetime(2026, 7, 4, 22, 45, tzinfo=UTC)
+    assert result.records[0].data["ended_at"] == datetime(2026, 7, 5, 6, 30, tzinfo=UTC)
+
+
+def test_garmin_sleep_session_mapper_keeps_raw_payload_when_no_sleep_session() -> None:
+    mapper = GarminSleepSessionMapper()
+
+    result = mapper.normalize_sleep_session(
+        {
+            "dailySleepDTO": {
+                "calendarDate": "2026-07-05",
+            },
+            "sleepScores": {},
+        }
+    )
+
+    assert result.raw_payload.object_type == "sleep_session"
+    assert result.raw_payload.object_id == "2026-07-05"
+    assert result.raw_payload.observed_at == datetime(
+        2026,
+        7,
+        5,
+        23,
+        59,
+        59,
+        999999,
+        tzinfo=UTC,
+    )
+    assert result.records == []
+
+
 def test_garmin_daily_and_sleep_mappers_reject_missing_dates() -> None:
     with pytest.raises(ValueError, match="daily summary"):
         GarminDailyMetricMapper().normalize_daily_metric({"totalSteps": 1000})
