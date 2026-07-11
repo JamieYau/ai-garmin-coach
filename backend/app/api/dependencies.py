@@ -92,11 +92,10 @@ def _get_or_create_app_user(db: Session, identity: BetterAuthIdentity) -> AppUse
     return app_user
 
 
-def get_current_user(
+def get_current_session_token(
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
-) -> AuthenticatedUser:
+) -> str:
     if not settings.better_auth_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -110,6 +109,13 @@ def get_current_user(
             detail="Authentication required",
         )
 
+    return token
+
+
+def get_current_user(
+    token: Annotated[str, Depends(get_current_session_token)],
+    db: Annotated[Session, Depends(get_db)],
+) -> AuthenticatedUser:
     identity = _load_better_auth_identity(db, token)
     if identity is None:
         raise HTTPException(

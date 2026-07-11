@@ -291,7 +291,9 @@ def test_dashboard_overview_marks_demo_source_data() -> None:
     assert response.json()["sync"]["has_demo_data"] is True
 
 
-def test_dashboard_overview_requires_authentication() -> None:
+def test_dashboard_overview_requires_authentication(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("BETTER_AUTH_SECRET", "test-secret-with-enough-length-for-local-tests")
     app = create_app()
     client = TestClient(app)
 
