@@ -59,6 +59,24 @@ Garmin session material is stored inside `source_connections.metadata.session_ma
 
 Backend logs use JSON formatting with recursive redaction for sensitive field names such as passwords, tokens, API keys, cookies, prompts, raw payloads, and Garmin session material. Log messages should still be written as structured fields rather than interpolated secrets; redaction is a guardrail, not permission to log raw health data or provider credentials.
 
+## Dependency And Secret Scanning
+
+Pull requests run dependency audits against the locked backend and frontend
+dependency graphs. The backend audit exports every locked runtime and development
+dependency from `uv.lock` with hashes and checks it with `pip-audit`. The
+frontend audit runs `npm audit --audit-level=high` against `package-lock.json`.
+Any backend finding, and any high- or critical-severity frontend finding, blocks
+the pull request. Lower-severity frontend findings remain visible in the audit
+report and must be reviewed during routine dependency updates.
+
+Enable GitHub secret scanning and push protection for the repository in its
+**Settings → Code security and analysis** page when those features are
+available for the repository. These controls complement, but do not replace,
+the existing ignored `.env` files and code review. Never add real credentials
+to fixtures, documentation, workflow logs, or commits. If a secret is exposed,
+revoke or rotate it immediately, remove it from the current branch and Git
+history as appropriate, and document any required follow-up in the incident.
+
 ## Data Stored
 
 The backend stores the minimum records needed for Garmin sync, dashboard views,
@@ -149,6 +167,5 @@ Before public launch, revisit these items:
   scaled deployments.
 - Define a secret rotation procedure for `BETTER_AUTH_SECRET` because it derives
   current encrypted Garmin session material keys.
-- Add automated secret scanning in CI.
 - Review database backup retention and deletion guarantees.
 - Review provider terms, consent language, and user-facing privacy disclosures.

@@ -154,6 +154,49 @@ See `docs/security.md` for the MVP security model, stored data inventory,
 non-stored sensitive values, user data lifecycle routes, and known Garmin API
 limitations.
 
+## Pull Request Security Checks
+
+Pull requests audit the locked backend dependencies with `pip-audit` and the
+frontend lockfile with `npm audit --audit-level=high`. High- and
+critical-severity frontend findings, plus any backend finding, fail CI.
+Repository maintainers should also enable GitHub secret scanning and push
+protection where available; see `docs/security.md` for handling instructions if
+a secret is exposed.
+
+## Container Images
+
+The backend and frontend have separate production Docker images. Build them
+from the repository root with:
+
+```bash
+docker build --tag garmin-coach-backend:local ./backend
+docker build \
+  --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 \
+  --tag garmin-coach-frontend:local \
+  ./frontend
+```
+
+Run the API image with its production environment variables supplied at runtime:
+
+```bash
+docker run --rm --publish 8000:8000 --env-file .env garmin-coach-backend:local
+```
+
+Run the frontend image with its Better Auth and database environment variables
+supplied at runtime:
+
+```bash
+docker run --rm --publish 3000:3000 --env-file .env garmin-coach-frontend:local
+```
+
+`NEXT_PUBLIC_API_BASE_URL` is embedded in browser assets at image build time.
+Use the deployed backend URL as its build argument for a production image;
+Better Auth, database, and other secrets must only be supplied at runtime.
+
+The images do not include a database or scheduled jobs. Local PostgreSQL and
+development commands remain native; Azure Container Apps deployment is planned
+separately after Azure resources are defined.
+
 ## Status
 
 MVP in development

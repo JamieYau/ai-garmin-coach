@@ -147,7 +147,9 @@ def test_manual_sync_endpoint_returns_failed_run_without_raw_payloads() -> None:
     assert "raw_payloads" not in body
 
 
-def test_manual_sync_endpoint_requires_authentication() -> None:
+def test_manual_sync_endpoint_requires_authentication(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("BETTER_AUTH_SECRET", "test-secret-with-enough-length-for-local-tests")
     app = create_app()
     client = TestClient(app)
 
