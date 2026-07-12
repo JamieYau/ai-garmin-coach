@@ -5,6 +5,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 
+import { getCrossSubdomainCookieDomain } from "@/lib/auth/cookie-domain";
+
 const rootEnvDir = path.resolve(process.cwd(), "..");
 const envDir = existsSync(path.join(rootEnvDir, ".env"))
   ? rootEnvDir
@@ -45,6 +47,10 @@ const useSecureCookies =
 const rateLimitEnabled =
   process.env.BETTER_AUTH_RATE_LIMIT_ENABLED === "true" ||
   (process.env.BETTER_AUTH_RATE_LIMIT_ENABLED !== "false" && isProduction);
+const crossSubdomainCookieDomain = getCrossSubdomainCookieDomain(
+  process.env.BETTER_AUTH_URL,
+  process.env.BETTER_AUTH_COOKIE_DOMAIN,
+);
 
 export const auth = betterAuth({
   appName: "AI Garmin Coach",
@@ -61,6 +67,14 @@ export const auth = betterAuth({
       sameSite: "lax",
       secure: useSecureCookies,
     },
+    ...(crossSubdomainCookieDomain
+      ? {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: crossSubdomainCookieDomain,
+          },
+        }
+      : {}),
   },
   rateLimit: {
     enabled: rateLimitEnabled,
