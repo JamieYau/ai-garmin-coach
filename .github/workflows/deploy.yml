@@ -29,6 +29,8 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_POSTGRES_ADMIN_PASSWORD: ${{ secrets.AZURE_POSTGRES_ADMIN_PASSWORD }}
       AZURE_BETTER_AUTH_SECRET: ${{ secrets.AZURE_BETTER_AUTH_SECRET }}
+      SMOKE_TEST_EMAIL: ${{ secrets.SMOKE_TEST_EMAIL }}
+      SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v5
@@ -39,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for variable in AZURE_RESOURCE_GROUP AZURE_POSTGRES_ADMIN_PASSWORD AZURE_BETTER_AUTH_SECRET; do
+          for variable in AZURE_RESOURCE_GROUP AZURE_POSTGRES_ADMIN_PASSWORD AZURE_BETTER_AUTH_SECRET SMOKE_TEST_EMAIL SMOKE_TEST_PASSWORD; do
             if [[ -z "${!variable}" ]]; then
               echo "::error title=Missing deployment configuration::$variable must be configured before deployment."
               exit 1
@@ -98,10 +100,14 @@ jobs:
             --parameters infra/deploy.bicepparam \
             --parameters \
               configureRuntimeSecrets=true \
+              configureDemoSeedSecret=true \
               deployMigrationJob=true \
               deployAuthMigrationJob=true \
+              deployDemoSeedJob=true \
               "backendImageTag=$DEPLOY_SHA" \
               "frontendImageTag=$DEPLOY_SHA" \
+              "demoUserEmail=$SMOKE_TEST_EMAIL" \
+              "demoUserPassword=$SMOKE_TEST_PASSWORD" \
               "frontendOrigin=https://bootstrap.invalid"
 
       - name: Run database migrations
@@ -150,6 +156,30 @@ jobs:
           done
 
           echo "Better Auth migration job $execution_name did not complete within ten minutes."
+          exit 1
+
+      - name: Seed production demo dashboard data
+        shell: bash
+        run: |
+          set -euo pipefail
+          execution_name="$(az containerapp job start --name caj-garmin-coach-demo-seed --resource-group "$AZURE_RESOURCE_GROUP" --query name --output tsv)"
+          test -n "$execution_name"
+
+          for attempt in {1..60}; do
+            status="$(az containerapp job execution list --name caj-garmin-coach-demo-seed --resource-group "$AZURE_RESOURCE_GROUP" --query "[?name=='$execution_name'] | [0].properties.status" --output tsv)"
+            case "$status" in
+              Succeeded)
+                exit 0
+                ;;
+              Failed|Canceled)
+                echo "Demo seed job $execution_name ended with $status."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "Demo seed job $execution_name did not complete within ten minutes."
           exit 1
 
       - name: Deploy API and discover its HTTPS origin
@@ -229,3 +259,12 @@ jobs:
               "frontendOrigin=${{ steps.frontend.outputs.origin }}" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA"
+
+      - name: Verify deployed services
+        env:
+          API_ORIGIN: ${{ steps.api.outputs.origin }}
+          FRONTEND_ORIGIN: ${{ steps.frontend.outputs.origin }}
+          SMOKE_TEST_EMAIL: ${{ env.SMOKE_TEST_EMAIL }}
+          SMOKE_TEST_PASSWORD: ${{ env.SMOKE_TEST_PASSWORD }}
+        shell: bash
+        run: bash tests/smoke/deployment-smoke.sh

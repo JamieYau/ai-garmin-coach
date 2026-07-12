@@ -12,6 +12,7 @@ param deployApiApp bool
 param deployScheduledSyncJob bool
 param deployMigrationJob bool
 param deployAuthMigrationJob bool
+param deployDemoSeedJob bool
 param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
@@ -19,7 +20,13 @@ param frontendOrigin string
 @secure()
 param betterAuthSecret string
 
+@secure()
+param demoUserPassword string
+
+param demoUserEmail string
+
 param configureRuntimeSecrets bool
+param configureDemoSeedSecret bool
 param githubRepository string
 param configureGithubOidc bool
 param configureRoleAssignments bool
@@ -301,6 +308,14 @@ resource betterAuthSecretSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' =
   }
 }
 
+resource demoUserPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (configureDemoSeedSecret) {
+  parent: keyVault
+  name: 'demo-user-password'
+  properties: {
+    value: demoUserPassword
+  }
+}
+
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: 'cae-${resourcePrefix}'
   location: location
@@ -321,7 +336,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
   }
 }
 
-module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || deployScheduledSyncJob || deployMigrationJob || deployAuthMigrationJob) {
+module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || deployScheduledSyncJob || deployMigrationJob || deployAuthMigrationJob || deployDemoSeedJob) {
   name: 'garmin-coach-workloads'
   params: {
     location: location
@@ -337,12 +352,15 @@ module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || 
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
     deployAuthMigrationJob: deployAuthMigrationJob
+    deployDemoSeedJob: deployDemoSeedJob
+    demoUserEmail: demoUserEmail
     tags: tags
   }
   dependsOn: [
     databaseUrlSecret
     betterAuthDatabaseUrlSecret
     betterAuthSecretSecret
+    demoUserPasswordSecret
   ]
 }
 

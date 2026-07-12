@@ -20,6 +20,7 @@ param deployApiApp bool = false
 param deployScheduledSyncJob bool = false
 param deployMigrationJob bool = false
 param deployAuthMigrationJob bool = false
+param deployDemoSeedJob bool = false
 param frontendImageTag string = 'bootstrap'
 param backendImageTag string = 'bootstrap'
 param frontendOrigin string = ''
@@ -27,7 +28,13 @@ param frontendOrigin string = ''
 @secure()
 param betterAuthSecret string = ''
 
+@secure()
+param demoUserPassword string = ''
+
+param demoUserEmail string = ''
+
 param configureRuntimeSecrets bool = false
+param configureDemoSeedSecret bool = false
 param githubRepository string = ''
 param configureGithubOidc bool = false
 param configureRoleAssignments bool = false
@@ -47,11 +54,15 @@ module platform './modules/platform.bicep' = {
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
     deployAuthMigrationJob: deployAuthMigrationJob
+    deployDemoSeedJob: deployDemoSeedJob
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
     betterAuthSecret: betterAuthSecret
+    demoUserPassword: demoUserPassword
+    demoUserEmail: demoUserEmail
     configureRuntimeSecrets: configureRuntimeSecrets
+    configureDemoSeedSecret: configureDemoSeedSecret
     githubRepository: githubRepository
     configureGithubOidc: configureGithubOidc
     configureRoleAssignments: configureRoleAssignments

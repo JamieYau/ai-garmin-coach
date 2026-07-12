@@ -12,6 +12,8 @@ param deployApiApp bool
 param deployScheduledSyncJob bool
 param deployMigrationJob bool
 param deployAuthMigrationJob bool
+param deployDemoSeedJob bool
+param demoUserEmail string
 
 resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFrontendApp) {
   name: 'ca-garmin-coach-web'
@@ -472,6 +474,91 @@ resource authMigrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployAuthMigrat
             {
               name: 'BETTER_AUTH_SECURE_COOKIES'
               value: 'true'
+            }
+          ]
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
+}
+
+resource demoSeedJob 'Microsoft.App/jobs@2024-03-01' = if (deployDemoSeedJob) {
+  name: 'caj-garmin-coach-demo-seed'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${runtimeIdentityId}': {}
+    }
+  }
+  tags: tags
+  properties: {
+    environmentId: environmentId
+    configuration: {
+      triggerType: 'Manual'
+      replicaRetryLimit: 0
+      replicaTimeout: 600
+      manualTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
+      registries: [
+        {
+          server: registryLoginServer
+          identity: runtimeIdentityId
+        }
+      ]
+      secrets: [
+        {
+          name: 'better-auth-database-url'
+          keyVaultUrl: '${keyVaultUri}secrets/better-auth-database-url'
+          identity: runtimeIdentityId
+        }
+        {
+          name: 'demo-user-password'
+          keyVaultUrl: '${keyVaultUri}secrets/demo-user-password'
+          identity: runtimeIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'demo-seed'
+          image: '${registryLoginServer}/garmin-coach-frontend-migration:${frontendImageTag}'
+          command: [
+            'npm'
+            'run'
+            'demo:seed'
+          ]
+          env: [
+            {
+              name: 'NODE_ENV'
+              value: 'production'
+            }
+            {
+              name: 'DEMO_SEED_ALLOW_PRODUCTION'
+              value: 'true'
+            }
+            {
+              name: 'BETTER_AUTH_DATABASE_URL'
+              secretRef: 'better-auth-database-url'
+            }
+            {
+              name: 'DEMO_USER_EMAIL'
+              value: demoUserEmail
+            }
+            {
+              name: 'DEMO_USER_PASSWORD'
+              secretRef: 'demo-user-password'
+            }
+            {
+              name: 'DEMO_USER_NAME'
+              value: 'Production Smoke Test'
             }
           ]
           resources: {

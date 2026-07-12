@@ -99,6 +99,9 @@ Two ingress-free migration jobs are defined with the workloads:
   `/app/.venv/bin/alembic upgrade head`.
 - `caj-garmin-coach-auth-migrate` runs Better Auth's `npm run auth:migrate`
   command from a dedicated frontend migration image.
+- `caj-garmin-coach-demo-seed` runs `npm run demo:seed` from that image. It is
+  manual, has no ingress, reads its database URL and demo password from Key
+  Vault, and is started by the deployment workflow before smoke tests.
 
 Both use Key Vault secret references and run before the API/frontend rollout.
 The Better Auth migration is required to create its `user`, `session`, and

@@ -33,6 +33,9 @@ param deployMigrationJob bool = false
 @description('Deploy the manual Better Auth schema migration Container Apps Job.')
 param deployAuthMigrationJob bool = false
 
+@description('Deploy the manual production demo-data seed Container Apps Job.')
+param deployDemoSeedJob bool = false
+
 @description('Immutable frontend image tag to deploy when deployWorkloads is true.')
 param frontendImageTag string = 'bootstrap'
 
@@ -46,8 +49,18 @@ param frontendOrigin string = ''
 @description('Long random Better Auth secret. Provide only when configureRuntimeSecrets is true.')
 param betterAuthSecret string = ''
 
+@secure()
+@description('Demo account password. Provide only when configureDemoSeedSecret is true.')
+param demoUserPassword string = ''
+
+@description('Demo account email used by the production demo-data seed job.')
+param demoUserEmail string = ''
+
 @description('Create or update Key Vault runtime secrets from the secure deployment parameters.')
 param configureRuntimeSecrets bool = false
+
+@description('Create or update the Key Vault secret consumed by the production demo-data seed job.')
+param configureDemoSeedSecret bool = false
 
 @description('GitHub owner/repository slug trusted for main-branch OIDC, for example owner/repository.')
 param githubRepository string = ''
@@ -84,11 +97,15 @@ module platform './modules/platform.bicep' = {
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
     deployAuthMigrationJob: deployAuthMigrationJob
+    deployDemoSeedJob: deployDemoSeedJob
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
     betterAuthSecret: betterAuthSecret
+    demoUserPassword: demoUserPassword
+    demoUserEmail: demoUserEmail
     configureRuntimeSecrets: configureRuntimeSecrets
+    configureDemoSeedSecret: configureDemoSeedSecret
     githubRepository: githubRepository
     configureGithubOidc: configureGithubOidc
     configureRoleAssignments: configureRoleAssignments
