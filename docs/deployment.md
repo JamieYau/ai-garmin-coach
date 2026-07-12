@@ -52,6 +52,7 @@ provisioning and use one alternate UK region consistently if needed.
 | Backend Container App | `ca-garmin-coach-api`, built from `backend/Dockerfile`; external HTTPS ingress on port 8000. | Runs FastAPI for browser requests and manual sync. Set `minReplicas: 0`, `maxReplicas: 1`. The frontend calls its public HTTPS origin. |
 | Scheduled Container Apps Job | `caj-garmin-coach-sync`, using the backend image with command `python -m app.jobs.sync`; no ingress. | Runs once daily at `03:00 UTC`, with one parallel execution and one retry. It performs incremental Garmin syncs and generates insights for successful syncs. One scheduled execution prevents duplicate scheduler instances. |
 | Migration Container Apps Job | `caj-garmin-coach-migrate`, using the backend image with command `/app/.venv/bin/alembic upgrade head`; no ingress. | Starts manually once for each deployment after its backend image is available. It has one replica, no retry, and uses the same Key Vault database secret as the API. |
+| Better Auth Migration Job | `caj-garmin-coach-auth-migrate`, using the frontend migration image with command `npm run auth:migrate`; no ingress. | Starts manually after the Alembic job and before web apps. It creates or updates Better Auth's `user`, `session`, and related auth tables using the Key Vault Better Auth database URL. |
 | Azure Database for PostgreSQL Flexible Server | One Burstable B1ms server with 32 GB storage and 32 GB backup storage. | Holds application, Better Auth, and Alembic-managed schema data. One database and one server only; no HA or read replicas for the MVP. |
 | Azure Key Vault | One Standard vault, `kv-garmin-coach-prod`. | Stores production secrets; apps and jobs read secrets through managed identities. Secrets are never committed, baked into images, or placed in GitHub Actions logs. |
 | Log Analytics workspace | One workspace, `log-garmin-coach-prod`, with the shortest supported retention that meets debugging needs. | Receives Container Apps platform and sanitized application logs. Configure a daily ingestion cap/alert in Phase 12.2. |
@@ -125,9 +126,10 @@ also explicitly enabled in the frontend Container App.
   exceed them. Check the subscription's current offer, remaining credit, and
   UK-region availability in the Azure portal before Phase 12.2.
 - Deploy only immutable, versioned images. After CI passes on `main`, the Phase
-  12.4 workflow pushes the backend image, runs Alembic through the manual job,
-  discovers the Azure HTTPS origins while staging the API/frontend, then applies
-  the final exact CORS/Auth configuration and enables scheduled sync.
+  12.4 workflow pushes backend and Better Auth migration images, runs Alembic
+  and Better Auth schema migrations through manual jobs, discovers the Azure
+  HTTPS origins while staging the API/frontend, then applies the final exact
+  CORS/Auth configuration and enables scheduled sync.
 - Retain only sanitized logs. Revisit PostgreSQL backup retention and data
   deletion behavior before any public launch.
 

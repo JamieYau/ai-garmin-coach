@@ -79,6 +79,14 @@ jobs:
           docker build --tag "$image" ./backend
           docker push "$image"
 
+      - name: Build and push Better Auth migration image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.registry.outputs.login_server }}/garmin-coach-frontend-migration:$DEPLOY_SHA"
+          docker build --target migration --tag "$image" ./frontend
+          docker push "$image"
+
       - name: Provision migration job and runtime secrets
         shell: bash
         run: |
@@ -91,7 +99,10 @@ jobs:
             --parameters \
               configureRuntimeSecrets=true \
               deployMigrationJob=true \
-              "backendImageTag=$DEPLOY_SHA"
+              deployAuthMigrationJob=true \
+              "backendImageTag=$DEPLOY_SHA" \
+              "frontendImageTag=$DEPLOY_SHA" \
+              "frontendOrigin=https://bootstrap.invalid"
 
       - name: Run database migrations
         shell: bash
@@ -117,6 +128,30 @@ jobs:
           echo "Migration job $execution_name did not complete within ten minutes."
           exit 1
 
+      - name: Run Better Auth schema migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          execution_name="$(az containerapp job start --name caj-garmin-coach-auth-migrate --resource-group "$AZURE_RESOURCE_GROUP" --query name --output tsv)"
+          test -n "$execution_name"
+
+          for attempt in {1..60}; do
+            status="$(az containerapp job execution list --name caj-garmin-coach-auth-migrate --resource-group "$AZURE_RESOURCE_GROUP" --query "[?name=='$execution_name'] | [0].properties.status" --output tsv)"
+            case "$status" in
+              Succeeded)
+                exit 0
+                ;;
+              Failed|Canceled)
+                echo "Better Auth migration job $execution_name ended with $status."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "Better Auth migration job $execution_name did not complete within ten minutes."
+          exit 1
+
       - name: Deploy API and discover its HTTPS origin
         id: api
         shell: bash
@@ -131,7 +166,9 @@ jobs:
               configureRuntimeSecrets=true \
               deployApiApp=true \
               deployMigrationJob=true \
+              deployAuthMigrationJob=true \
               "frontendOrigin=https://bootstrap.invalid" \
+              "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.apiFqdn.value \
             --output tsv)"
@@ -164,6 +201,7 @@ jobs:
               deployFrontendApp=true \
               deployApiApp=true \
               deployMigrationJob=true \
+              deployAuthMigrationJob=true \
               "frontendOrigin=https://bootstrap.invalid" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
@@ -187,6 +225,7 @@ jobs:
               deployApiApp=true \
               deployScheduledSyncJob=true \
               deployMigrationJob=true \
+              deployAuthMigrationJob=true \
               "frontendOrigin=${{ steps.frontend.outputs.origin }}" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA"

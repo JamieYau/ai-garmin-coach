@@ -93,11 +93,16 @@ FQDN, build the frontend with that API origin, deploy the frontend, then update
 the API CORS origin to the frontend FQDN. A custom domain can replace the Azure
 FQDNs later without changing the resource topology.
 
-The backend migration job (`caj-garmin-coach-migrate`) is also defined with the
-workloads. It has no ingress and runs `alembic upgrade head` once per manual
-execution using the Key Vault database secret (via `/app/.venv/bin/alembic` in
-the production image). Phase 12.4 will start it after
-pushing the backend image and before updating the API revision.
+Two ingress-free migration jobs are defined with the workloads:
+
+- `caj-garmin-coach-migrate` runs backend Alembic migrations with
+  `/app/.venv/bin/alembic upgrade head`.
+- `caj-garmin-coach-auth-migrate` runs Better Auth's `npm run auth:migrate`
+  command from a dedicated frontend migration image.
+
+Both use Key Vault secret references and run before the API/frontend rollout.
+The Better Auth migration is required to create its `user`, `session`, and
+related authentication tables; Alembic does not manage those tables.
 
 ## GitHub Actions OIDC Bootstrap
 
@@ -157,10 +162,10 @@ a data migration.
 `CI` now runs for pushes to `main`. A successful CI run triggers
 `.github/workflows/deploy.yml`, which performs this ordered rollout:
 
-1. Authenticate through GitHub OIDC and push the immutable backend image to
-   Azure Container Registry.
+1. Authenticate through GitHub OIDC and push immutable backend plus Better Auth
+   migration images to Azure Container Registry.
 2. Apply the resource-group-scoped `infra/deploy.bicep` template to create the
-   runtime secrets and migration job, then start and wait for the migration.
+   runtime secrets and migration jobs, then run and wait for both migrations.
 3. Deploy the API temporarily, discover its Azure HTTPS FQDN, build and push
    the frontend with that API URL, then discover the frontend FQDN.
 4. Apply the final frontend/auth/CORS configuration, deploy both web apps, and

@@ -30,6 +30,9 @@ param deployScheduledSyncJob bool = false
 @description('Deploy the manual Alembic migration Container Apps Job.')
 param deployMigrationJob bool = false
 
+@description('Deploy the manual Better Auth schema migration Container Apps Job.')
+param deployAuthMigrationJob bool = false
+
 @description('Immutable frontend image tag to deploy when deployWorkloads is true.')
 param frontendImageTag string = 'bootstrap'
 
@@ -80,6 +83,7 @@ module platform './modules/platform.bicep' = {
     deployApiApp: deployApiApp
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
+    deployAuthMigrationJob: deployAuthMigrationJob
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin

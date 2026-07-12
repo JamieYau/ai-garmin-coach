@@ -11,6 +11,7 @@ param deployFrontendApp bool
 param deployApiApp bool
 param deployScheduledSyncJob bool
 param deployMigrationJob bool
+param deployAuthMigrationJob bool
 param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
@@ -320,7 +321,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
   }
 }
 
-module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || deployScheduledSyncJob || deployMigrationJob) {
+module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || deployScheduledSyncJob || deployMigrationJob || deployAuthMigrationJob) {
   name: 'garmin-coach-workloads'
   params: {
     location: location
@@ -335,6 +336,7 @@ module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || 
     deployApiApp: deployApiApp
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
+    deployAuthMigrationJob: deployAuthMigrationJob
     tags: tags
   }
   dependsOn: [

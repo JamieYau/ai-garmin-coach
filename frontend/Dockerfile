@@ -22,6 +22,12 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
+FROM builder AS migration
+
+RUN npm install --no-save --ignore-scripts auth@1.6.23
+
+CMD ["npm", "run", "auth:migrate"]
+
 FROM node:22-bookworm-slim AS runner
 
 ENV NODE_ENV=production \

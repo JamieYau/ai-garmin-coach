@@ -11,6 +11,7 @@ param deployFrontendApp bool
 param deployApiApp bool
 param deployScheduledSyncJob bool
 param deployMigrationJob bool
+param deployAuthMigrationJob bool
 
 resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFrontendApp) {
   name: 'ca-garmin-coach-web'
@@ -387,6 +388,86 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) 
             {
               name: 'BETTER_AUTH_SECRET'
               secretRef: 'better-auth-secret'
+            }
+          ]
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
+}
+
+resource authMigrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployAuthMigrationJob) {
+  name: 'caj-garmin-coach-auth-migrate'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${runtimeIdentityId}': {}
+    }
+  }
+  tags: tags
+  properties: {
+    environmentId: environmentId
+    configuration: {
+      triggerType: 'Manual'
+      replicaRetryLimit: 0
+      replicaTimeout: 1800
+      manualTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
+      registries: [
+        {
+          server: registryLoginServer
+          identity: runtimeIdentityId
+        }
+      ]
+      secrets: [
+        {
+          name: 'better-auth-database-url'
+          keyVaultUrl: '${keyVaultUri}secrets/better-auth-database-url'
+          identity: runtimeIdentityId
+        }
+        {
+          name: 'better-auth-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/better-auth-secret'
+          identity: runtimeIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'auth-migration'
+          image: '${registryLoginServer}/garmin-coach-frontend-migration:${frontendImageTag}'
+          env: [
+            {
+              name: 'NODE_ENV'
+              value: 'production'
+            }
+            {
+              name: 'BETTER_AUTH_DATABASE_URL'
+              secretRef: 'better-auth-database-url'
+            }
+            {
+              name: 'BETTER_AUTH_SECRET'
+              secretRef: 'better-auth-secret'
+            }
+            {
+              name: 'BETTER_AUTH_URL'
+              value: frontendOrigin
+            }
+            {
+              name: 'FRONTEND_URL'
+              value: frontendOrigin
+            }
+            {
+              name: 'BETTER_AUTH_SECURE_COOKIES'
+              value: 'true'
             }
           ]
           resources: {

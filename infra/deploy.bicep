@@ -19,6 +19,7 @@ param deployFrontendApp bool = false
 param deployApiApp bool = false
 param deployScheduledSyncJob bool = false
 param deployMigrationJob bool = false
+param deployAuthMigrationJob bool = false
 param frontendImageTag string = 'bootstrap'
 param backendImageTag string = 'bootstrap'
 param frontendOrigin string = ''
@@ -45,6 +46,7 @@ module platform './modules/platform.bicep' = {
     deployApiApp: deployApiApp
     deployScheduledSyncJob: deployScheduledSyncJob
     deployMigrationJob: deployMigrationJob
+    deployAuthMigrationJob: deployAuthMigrationJob
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin

@@ -8,6 +8,7 @@ param deployFrontendApp = false
 param deployApiApp = false
 param deployScheduledSyncJob = false
 param deployMigrationJob = false
+param deployAuthMigrationJob = false
 param configureRuntimeSecrets = false
 param configureGithubOidc = false
 param configureRoleAssignments = false
