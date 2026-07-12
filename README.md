@@ -154,6 +154,23 @@ See `docs/security.md` for the MVP security model, stored data inventory,
 non-stored sensitive values, user data lifecycle routes, and known Garmin API
 limitations.
 
+## Project Visuals
+
+The screenshots below were captured from the local seeded demo account. They
+contain deterministic synthetic records only; no real athlete data is shown.
+
+![Live overview screenshot showing synthetic activity, sleep, recovery, and coaching data.](docs/assets/dashboard-overview-demo.png)
+
+![Live coach insight screenshot showing structured synthetic recommendation data.](docs/assets/coach-insight-demo.png)
+
+The implementation flow is deliberately small: the authenticated frontend reads
+from the FastAPI API, which owns normalized user-scoped records and coordinates
+the connector, scheduled jobs, and structured coach output.
+
+![AI Garmin Coach MVP architecture.](docs/assets/architecture.svg)
+
+For a five-minute product walkthrough, see [the demo script](docs/demo-script.md).
+
 ## Pull Request Security Checks
 
 Pull requests audit the locked backend dependencies with `pip-audit` and the
