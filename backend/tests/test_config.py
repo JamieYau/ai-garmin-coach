@@ -66,3 +66,14 @@ def test_production_settings_reject_insecure_cors_and_missing_auth_secret() -> N
         assert "BETTER_AUTH_SECRET" in str(error)
     else:
         raise AssertionError("Expected insecure production settings to be rejected")
+
+
+def test_production_migration_settings_do_not_require_browser_origins() -> None:
+    settings = Settings(
+        app_env="production",
+        app_component="migration",
+        database_url="postgresql+psycopg://user:pass@database.example:5432/app?sslmode=require",
+        better_auth_secret="a" * 32,
+    )
+
+    assert settings.app_component == "migration"

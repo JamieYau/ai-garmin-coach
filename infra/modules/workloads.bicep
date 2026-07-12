@@ -170,6 +170,10 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApiApp) {
               value: 'production'
             }
             {
+              name: 'APP_COMPONENT'
+              value: 'api'
+            }
+            {
               name: 'DATABASE_URL'
               secretRef: 'database-url'
             }
@@ -292,6 +296,10 @@ resource scheduledSyncJob 'Microsoft.App/jobs@2024-03-01' = if (deployScheduledS
               value: 'production'
             }
             {
+              name: 'APP_COMPONENT'
+              value: 'scheduled_job'
+            }
+            {
               name: 'DATABASE_URL'
               secretRef: 'database-url'
             }
@@ -367,6 +375,10 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) 
             {
               name: 'APP_ENV'
               value: 'production'
+            }
+            {
+              name: 'APP_COMPONENT'
+              value: 'migration'
             }
             {
               name: 'DATABASE_URL'

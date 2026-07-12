@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, field_validator, model_validator
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_name: str = "AI Garmin Coach API"
     app_version: str = "0.1.0"
     app_env: str = "development"
+    app_component: Literal["api", "migration", "scheduled_job"] = "api"
     log_level: str = "info"
 
     frontend_url: str = "http://localhost:3000"
@@ -55,6 +56,9 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL is required in production")
         if not self.better_auth_secret or len(self.better_auth_secret) < 32:
             raise ValueError("BETTER_AUTH_SECRET must contain at least 32 characters in production")
+
+        if self.app_component != "api":
+            return self
 
         for setting_name, origin in (
             ("FRONTEND_URL", self.frontend_url),
