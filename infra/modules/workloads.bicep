@@ -187,6 +187,10 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApiApp) {
               value: frontendOrigin
             }
             {
+              name: 'BETTER_AUTH_URL'
+              value: frontendOrigin
+            }
+            {
               name: 'BACKEND_CORS_ORIGINS'
               value: frontendOrigin
             }
