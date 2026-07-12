@@ -2,10 +2,10 @@
 
 ## Scope and Status
 
-This document defines the target Azure production topology for the MVP. It is a
-resource plan only: it does not provision Azure resources, configure secrets,
-or enable automatic deployment. Those changes belong to Phases 12.2 through
-12.5.
+This document defines the target Azure production topology for the MVP. Phase
+12.2 supplies reproducible Bicep definitions for the platform baseline; it does
+not provision the subscription, configure runtime secret values, or enable
+automatic deployment. Those changes belong to Phases 12.3 through 12.5.
 
 The plan is deliberately sized for an Azure for Students portfolio deployment.
 It uses consumption-based Container Apps, a single small PostgreSQL server, and
@@ -61,15 +61,16 @@ naming rules require it.
 
 ## Network and Access Boundaries
 
-- Use a dedicated virtual network with separate Container Apps infrastructure
-  and workload subnets, plus a delegated PostgreSQL subnet and private DNS
-  zone. The PostgreSQL server uses private access only; do not enable public
-  database access or the broad "allow Azure services" firewall exception.
+- Use a dedicated virtual network with a delegated Container Apps subnet and a
+  separate delegated PostgreSQL subnet, plus a private DNS zone. The PostgreSQL
+  server uses private access only; do not enable public database access or the
+  broad "allow Azure services" firewall exception.
 - Frontend and API Container Apps use external ingress so browsers can reach
   them over Azure-managed HTTPS. No direct ingress is configured for the job or
   PostgreSQL server.
-- Assign system-managed identities to the frontend, API, and job. Grant only
-  `AcrPull` on the registry and Key Vault secret-read access through Azure RBAC.
+- Assign one user-managed runtime identity to the frontend, API, and job. It is
+  created before the workloads so its `AcrPull` and Key Vault secret-read roles
+  are available before private images or secrets are consumed.
 - GitHub Actions authenticates through Azure workload identity federation (OIDC)
   in Phase 12.4. It receives deployment-scoped access only; no long-lived Azure
   client secret is stored in GitHub.
@@ -117,10 +118,26 @@ backend and job receive the AI-provider settings.
 - Retain only sanitized logs. Revisit PostgreSQL backup retention and data
   deletion behavior before any public launch.
 
+## Infrastructure as Code
+
+Phase 12.2 uses Azure-native Bicep. The subscription-scoped entry point in
+`infra/main.bicep` creates the production resource group and calls the
+resource-group baseline in `infra/modules/platform.bicep`. It creates the VNet,
+private DNS zone, PostgreSQL server/database, registry, Key Vault, Log
+Analytics workspace, runtime identity, and Container Apps environment.
+
+The frontend, API, and scheduled job definitions are present but conditional.
+`deployWorkloads` defaults to `false`, so validating or creating the baseline
+does not attempt to pull placeholder images or resolve Key Vault secrets.
+`infra/README.md` documents the required Azure CLI `validate`, `what-if`, and
+`create` commands. Only enable the workloads after Phase 12.3 creates the
+runtime secret values and Phase 12.4 pushes immutable images.
+
 ## Explicit Non-Goals
 
-- No Azure resources, DNS custom domain, Infrastructure as Code, or deployment
-  workflow are created in Phase 12.1.
+- No Azure resources, DNS custom domain, or deployment workflow are created by
+  the repository alone. Bicep definitions are present, but deployment remains
+  an explicit Azure CLI or future GitHub Actions action.
 - No Redis, queue worker, Azure OpenAI, Front Door/WAF, application gateway,
   geo-replication, high availability, or database read replica is included.
 - No guarantee is made that the deployment stays free after Azure for Students
