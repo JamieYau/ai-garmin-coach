@@ -1,202 +1,144 @@
 # AI Garmin Coach
 
-An AI-powered coaching dashboard that ingests Garmin fitness data and generates personalised training and recovery insights.
+AI Garmin Coach is a full-stack fitness dashboard that turns Garmin activity,
+sleep, and recovery records into a concise daily coaching view. It focuses on
+reliable ingestion, user-owned data, and conservative structured guidance—not
+an open-ended chat experience.
 
-## Product Scope
+![Live overview screenshot showing synthetic activity, sleep, recovery, and coaching data.](docs/assets/dashboard-overview-demo.png)
 
-The MVP connects a user's Garmin data, stores normalized training and recovery records, and presents a dashboard with structured AI coaching insights. The first working slice should prioritize Garmin ingestion, dashboard metrics, and daily coach recommendations over broad connector or chat features.
+## Highlights
 
-## Stack
+- Normalizes Garmin activity, sleep, recovery, and biometric data into
+  connector-neutral records.
+- Presents activity, recovery, sleep, source, and coach views in a Next.js
+  dashboard.
+- Generates schema-validated daily coach insights from deterministic metric
+  summaries and safety rules.
+- Provides deterministic synthetic demo data, so the complete product flow can
+  be explored without Garmin credentials or real health data.
 
-- Frontend: Next.js App Router, TypeScript, Tailwind, shadcn/ui or Radix, TanStack Query
-- Backend: FastAPI, Pydantic, SQLAlchemy 2.0, Alembic
-- Database: PostgreSQL
-- Auth: Better Auth
-- Garmin integration: python-garminconnect
+## Architecture
 
-## Repository Layout
+Next.js owns interactive authentication through Better Auth. FastAPI validates
+the shared session before accessing user-scoped data in PostgreSQL. Scheduled
+jobs orchestrate sync and insight generation outside web requests.
 
-- `frontend/`: Next.js App Router application.
-- `backend/`: FastAPI service, Pydantic schemas, SQLAlchemy models, Garmin integration, and coach logic.
-- `backend/alembic/`: database migrations.
-- `docs/`: longer design notes and architecture decision records.
-- `.github/workflows/`: CI/CD workflow definitions.
+![AI Garmin Coach MVP architecture.](docs/assets/architecture.svg)
 
-## Local Services
+For the production topology and operational constraints, see
+[deployment.md](docs/deployment.md).
 
-| Service     | Local name              | Port   | URL                                        |
-| ----------- | ----------------------- | ------ | ------------------------------------------ |
-| Frontend    | `garmin-coach-frontend` | `3000` | `http://localhost:3000`                    |
-| Backend API | `garmin-coach-api`      | `8000` | `http://localhost:8000`                    |
-| PostgreSQL  | `garmin-coach-postgres` | `5432` | `postgresql://localhost:5432/garmin_coach` |
+## AI Coaching
 
-## Environment
+The coach turns 7-day activity, sleep, and recovery summaries into a typed JSON
+insight. Deterministic safety rules flag sparse data, poor recovery, elevated
+resting heart rate, low HRV, rising load, and optional pain/injury language
+before provider output is validated and readiness is capped. Guidance is
+conservative and non-medical.
 
-Copy `.env.example` to `.env` for local development and replace placeholder values with local-only secrets. Do not commit `.env` files, Garmin credentials, database URLs with real passwords, auth secrets, or model API keys.
+The implementation lives in
+[metric_summary.py](backend/app/services/metric_summary.py),
+[coach_safety.py](backend/app/services/coach_safety.py), and
+[coach.py](backend/app/services/coach.py). The local default is deterministic
+mock output; OpenAI structured output is optional.
 
-Required variables are grouped in `.env.example`:
+## Run Locally
 
-- App runtime: `APP_ENV`, `LOG_LEVEL`.
-- Local ports and URLs: `FRONTEND_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `FRONTEND_URL`, `NEXT_PUBLIC_API_BASE_URL`, `BACKEND_CORS_ORIGINS`.
-- FastAPI abuse protection: `RATE_LIMIT_ENABLED`, `GARMIN_CONNECTION_RATE_LIMIT_*`, `MANUAL_SYNC_RATE_LIMIT_*`, `AI_INSIGHT_RATE_LIMIT_*`.
-- PostgreSQL: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`.
-- Auth: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`.
-- Better Auth database: `BETTER_AUTH_DATABASE_URL`.
-- AI provider: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MAX_OUTPUT_TOKENS`.
-- Garmin local setup: `GARMIN_USERNAME`, `GARMIN_PASSWORD`.
-
-## Development Commands
-
-Backend commands are available from `backend/` after installing `uv`:
+Prerequisites: Python 3.12 with `uv`, Node.js with npm, and local PostgreSQL.
+Copy `.env.example` to `.env` and set local-only values there.
 
 ```bash
 cd backend
 uv sync --dev
-uv run python --version
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
-uv run pytest
-uv run ruff check
-uv run mypy app
 ```
-
-Once Alembic migrations exist, apply them with:
-
-```bash
-cd backend
-uv run alembic upgrade head
-```
-
-## Database Migrations
-
-The backend expects a native local PostgreSQL instance for development. Create a local database that matches `.env.example`, set `DATABASE_URL` in `.env`, then run Alembic through `uv` from `backend/`.
-
-Useful commands:
-
-```bash
-cd backend
-uv run alembic current
-uv run alembic revision --autogenerate -m "Describe schema change"
-uv run alembic upgrade head
-uv run alembic downgrade -1
-```
-
-If PostgreSQL client tools are installed, verify the local service with:
-
-```bash
-pg_isready -h localhost -p 5432
-```
-
-Frontend commands are available from `frontend/`:
 
 ```bash
 cd frontend
 npm install
-npm run dev
-npm run lint
-npm run lint:fix
-npm run format:check
-npm run format
-npm run auth:generate
 npm run auth:migrate
+npm run dev
+```
+
+The frontend runs at `http://localhost:3000` and the API at
+`http://localhost:8000`.
+
+### Demo data
+
+Seed a complete synthetic dashboard without Garmin credentials:
+
+```bash
+cd frontend
 npm run demo:seed
+```
+
+Sign in with `demo@example.test` and `demo-password-local-only`. The seed is
+safe to rerun and refuses production environments. See the
+[demo script](docs/demo-script.md) for a short guided walkthrough.
+
+## Quality Checks
+
+```bash
+cd backend
+uv run ruff check
+uv run mypy app
+uv run pytest
+```
+
+```bash
+cd frontend
+npm run lint
+npm run format:check
 npm run typecheck
 npm run test
 ```
 
-For local email/password authentication, point `BETTER_AUTH_DATABASE_URL`
-at the same PostgreSQL database using the standard `postgresql://` URL form,
-then run `npm run auth:migrate` from `frontend/` to create Better Auth's
-tables.
-
-To preview protected dashboard screens before real Garmin sync is wired up,
-seed the local demo account and deterministic dashboard data:
-
-```bash
-cd frontend
-npm run demo:seed
-```
-
-The seed command refuses production environments, is safe to rerun, and uses
-`DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_NAME` from `.env` when
-present. By default, sign in locally with `demo@example.test` and
-`demo-password-local-only`.
-
-## API Authentication Boundary
-
-The frontend owns interactive authentication through Better Auth. FastAPI
-authorizes browser API calls by validating the signed
-`better-auth.session_token` cookie against Better Auth's shared PostgreSQL
-`session` table and joining it to the Better Auth `user` table.
-
-Local development flow:
-
-```bash
-cd frontend
-npm run auth:migrate
-npm run dev
-```
-
-```bash
-cd backend
-uv run uvicorn app.main:app --reload
-```
-
-Use the same `DATABASE_URL`/`BETTER_AUTH_DATABASE_URL` target and
-`BETTER_AUTH_SECRET` for both services. Protected FastAPI routes should depend
-on `get_current_app_user` or `get_current_user` from
-`backend/app/api/dependencies.py`; the dependency creates or updates the local
-`app_users` profile from the Better Auth user record and then scopes API work
-to that local user.
+Pull-request CI also audits locked dependencies and builds the frontend and
+backend container images.
 
 ## Security And Data Handling
 
-See `docs/security.md` for the MVP security model, stored data inventory,
-non-stored sensitive values, user data lifecycle routes, and known Garmin API
-limitations.
+Better Auth protects browser sessions; FastAPI scopes all app data to the
+authenticated user. Garmin session material is encrypted at rest, credentials
+are not retained after connection setup, logs redact sensitive fields, and the
+app provides disconnect and data-deletion controls.
 
-## Pull Request Security Checks
+Read the [security notes](docs/security.md) for the complete data inventory,
+cookie and CSRF posture, rate limits, lifecycle behavior, and Garmin-specific
+considerations.
 
-Pull requests audit the locked backend dependencies with `pip-audit` and the
-frontend lockfile with `npm audit --audit-level=high`. High- and
-critical-severity frontend findings, plus any backend finding, fail CI.
-Repository maintainers should also enable GitHub secret scanning and push
-protection where available; see `docs/security.md` for handling instructions if
-a secret is exposed.
+## Deployment
 
-## Container Images
+Infrastructure is defined in Bicep under `infra/`. The intended Azure MVP uses
+separate frontend and API Container Apps, private PostgreSQL, Key Vault, Azure
+Container Registry, and ingress-free migration, sync, and demo-seed jobs.
 
-The backend and frontend have separate production Docker images. Build them
-from the repository root with:
+Deployment details, smoke tests, and cost guardrails are in
+[deployment.md](docs/deployment.md) and [infra/README.md](infra/README.md).
 
-```bash
-docker build --tag garmin-coach-backend:local ./backend
-docker build \
-  --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 \
-  --tag garmin-coach-frontend:local \
-  ./frontend
-```
+## Limitations
 
-Run the API image with its production environment variables supplied at runtime:
+- `python-garminconnect` is not a formal Garmin OAuth integration; provider
+  login behavior and available fields can change.
+- Garmin data can be delayed or incomplete, and coach guidance is not medical
+  advice or diagnosis.
+- The MVP excludes chat, team sharing, real-time sync, queues, Redis, and a
+  broad connector catalogue.
+- The initial Azure topology is deliberately single-replica and scale-to-zero;
+  shared or edge rate limiting is needed before horizontally scaled public use.
 
-```bash
-docker run --rm --publish 8000:8000 --env-file .env garmin-coach-backend:local
-```
+## Further Reading
 
-Run the frontend image with its Better Auth and database environment variables
-supplied at runtime:
-
-```bash
-docker run --rm --publish 3000:3000 --env-file .env garmin-coach-frontend:local
-```
-
-`NEXT_PUBLIC_API_BASE_URL` is embedded in browser assets at image build time.
-Use the deployed backend URL as its build argument for a production image;
-Better Auth, database, and other secrets must only be supplied at runtime.
-
-The images do not include a database or scheduled jobs. Local PostgreSQL and
-development commands remain native; Azure Container Apps deployment is planned
-separately after Azure resources are defined.
+| Topic                        | Details                                            |
+| ---------------------------- | -------------------------------------------------- |
+| Architecture and constraints | [docs/architecture.md](docs/architecture.md)         |
+| Security and privacy         | [docs/security.md](docs/security.md)               |
+| Background jobs              | [docs/background-jobs.md](docs/background-jobs.md) |
+| Deployment and operations    | [docs/deployment.md](docs/deployment.md)           |
+| Demo walkthrough             | [docs/demo-script.md](docs/demo-script.md)         |
 
 ## Status
 
-MVP in development
+MVP in development. The active roadmap is in `.ai/PLANS.md`.
