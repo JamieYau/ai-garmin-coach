@@ -1,4 +1,4 @@
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 
 def test_settings_load_from_environment(monkeypatch) -> None:
@@ -35,3 +35,34 @@ def test_require_database_url_rejects_missing_value(monkeypatch) -> None:
         assert str(error) == "DATABASE_URL is required for database migrations"
     else:
         raise AssertionError("Expected missing database URL to raise")
+
+
+def test_production_settings_require_https_origins_and_a_strong_auth_secret() -> None:
+    settings = Settings(
+        app_env="production",
+        database_url="postgresql+psycopg://user:pass@database.example:5432/app?sslmode=require",
+        better_auth_secret="a" * 32,
+        frontend_url="https://frontend.example",
+        better_auth_url="https://frontend.example",
+        backend_cors_origins=["https://frontend.example"],
+        backend_cors_allow_credentials=True,
+    )
+
+    assert settings.app_env == "production"
+
+
+def test_production_settings_reject_insecure_cors_and_missing_auth_secret() -> None:
+    try:
+        Settings(
+            app_env="production",
+            database_url="postgresql+psycopg://user:pass@database.example:5432/app?sslmode=require",
+            better_auth_secret="too-short",
+            frontend_url="http://frontend.example",
+            better_auth_url="https://frontend.example",
+            backend_cors_origins=["*"],
+            backend_cors_allow_credentials=False,
+        )
+    except ValueError as error:
+        assert "BETTER_AUTH_SECRET" in str(error)
+    else:
+        raise AssertionError("Expected insecure production settings to be rejected")

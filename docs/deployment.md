@@ -4,8 +4,9 @@
 
 This document defines the target Azure production topology for the MVP. Phase
 12.2 supplies reproducible Bicep definitions for the platform baseline; it does
-not provision the subscription, configure runtime secret values, or enable
-automatic deployment. Those changes belong to Phases 12.3 through 12.5.
+not provision the subscription or enable automatic deployment. Phase 12.3 adds
+the secure runtime-configuration definitions; deployment automation belongs to
+Phases 12.4 and 12.5.
 
 The plan is deliberately sized for an Azure for Students portfolio deployment.
 It uses consumption-based Container Apps, a single small PostgreSQL server, and
@@ -50,6 +51,7 @@ provisioning and use one alternate UK region consistently if needed.
 | Frontend Container App | `ca-garmin-coach-web`, built from `frontend/Dockerfile`; external HTTPS ingress on port 3000. | Runs Next.js and Better Auth. Set `minReplicas: 0`, `maxReplicas: 1`; it is intentionally a single-replica MVP deployment. |
 | Backend Container App | `ca-garmin-coach-api`, built from `backend/Dockerfile`; external HTTPS ingress on port 8000. | Runs FastAPI for browser requests and manual sync. Set `minReplicas: 0`, `maxReplicas: 1`. The frontend calls its public HTTPS origin. |
 | Scheduled Container Apps Job | `caj-garmin-coach-sync`, using the backend image with command `python -m app.jobs.sync`; no ingress. | Runs once daily at `03:00 UTC`, with one parallel execution and one retry. It performs incremental Garmin syncs and generates insights for successful syncs. One scheduled execution prevents duplicate scheduler instances. |
+| Migration Container Apps Job | `caj-garmin-coach-migrate`, using the backend image with command `alembic upgrade head`; no ingress. | Starts manually once for each deployment after its backend image is available. It has one replica, no retry, and uses the same Key Vault database secret as the API. |
 | Azure Database for PostgreSQL Flexible Server | One Burstable B1ms server with 32 GB storage and 32 GB backup storage. | Holds application, Better Auth, and Alembic-managed schema data. One database and one server only; no HA or read replicas for the MVP. |
 | Azure Key Vault | One Standard vault, `kv-garmin-coach-prod`. | Stores production secrets; apps and jobs read secrets through managed identities. Secrets are never committed, baked into images, or placed in GitHub Actions logs. |
 | Log Analytics workspace | One workspace, `log-garmin-coach-prod`, with the shortest supported retention that meets debugging needs. | Receives Container Apps platform and sanitized application logs. Configure a daily ingestion cap/alert in Phase 12.2. |
@@ -77,8 +79,9 @@ naming rules require it.
 
 ## Runtime Configuration and Secrets
 
-Phase 12.3 must provide the following values from Key Vault or Container Apps
-secret references, never from the image build or source control:
+Phase 12.3 defines the following values as Key Vault secrets or Container Apps
+secret references. `configureRuntimeSecrets=true` writes the first three from
+secure Bicep parameters; none are stored in source control or template outputs:
 
 - `DATABASE_URL` and `BETTER_AUTH_DATABASE_URL`, both using TLS to the same
   PostgreSQL server.
@@ -98,6 +101,13 @@ secret references, never from the image build or source control:
 The frontend, API, and scheduled job share database and encryption settings.
 Only the frontend receives Better Auth's runtime database settings; only the
 backend and job receive the AI-provider settings.
+
+Container Apps external ingress explicitly rejects HTTP (`allowInsecure=false`)
+and Azure supplies the default `https://...azurecontainerapps.io` origin. The
+backend refuses to start in production unless its database URL, 32+-character
+Better Auth secret, exact HTTPS CORS origin, and credentialed CORS setting are
+present. Better Auth's secure cookies, CSRF/origin checks, and rate limiting are
+also explicitly enabled in the frontend Container App.
 
 ## Operations, Cost, and Delivery Guardrails
 
@@ -131,7 +141,9 @@ The frontend, API, and scheduled job definitions are present but conditional.
 does not attempt to pull placeholder images or resolve Key Vault secrets.
 `infra/README.md` documents the required Azure CLI `validate`, `what-if`, and
 `create` commands. Only enable the workloads after Phase 12.3 creates the
-runtime secret values and Phase 12.4 pushes immutable images.
+runtime secret values and Phase 12.4 pushes immutable images. The workload
+module also defines an ingress-free manual migration job that Phase 12.4 starts
+before deploying the backend revision.
 
 ## Explicit Non-Goals
 

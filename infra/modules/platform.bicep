@@ -12,6 +12,11 @@ param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
 
+@secure()
+param betterAuthSecret string
+
+param configureRuntimeSecrets bool
+
 var resourcePrefix = '${projectName}-${nameSuffix}'
 var tags = {
   application: 'ai-garmin-coach'
@@ -20,6 +25,10 @@ var tags = {
 }
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+var databaseHost = postgresServer.properties.fullyQualifiedDomainName
+var encodedPostgresPassword = uriComponent(postgresAdministratorPassword)
+var databaseUrl = 'postgresql+psycopg://${postgresAdministratorLogin}:${encodedPostgresPassword}@${databaseHost}:5432/garmin_coach?sslmode=require'
+var betterAuthDatabaseUrl = 'postgresql://${postgresAdministratorLogin}:${encodedPostgresPassword}@${databaseHost}:5432/garmin_coach?sslmode=require'
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: 'vnet-${resourcePrefix}'
@@ -211,6 +220,30 @@ resource applicationDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/database
   }
 }
 
+resource databaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (configureRuntimeSecrets) {
+  parent: keyVault
+  name: 'database-url'
+  properties: {
+    value: databaseUrl
+  }
+}
+
+resource betterAuthDatabaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (configureRuntimeSecrets) {
+  parent: keyVault
+  name: 'better-auth-database-url'
+  properties: {
+    value: betterAuthDatabaseUrl
+  }
+}
+
+resource betterAuthSecretSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (configureRuntimeSecrets) {
+  parent: keyVault
+  name: 'better-auth-secret'
+  properties: {
+    value: betterAuthSecret
+  }
+}
+
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: 'cae-${resourcePrefix}'
   location: location
@@ -244,6 +277,11 @@ module workloads './workloads.bicep' = if (deployWorkloads) {
     frontendOrigin: frontendOrigin
     tags: tags
   }
+  dependsOn: [
+    databaseUrlSecret
+    betterAuthDatabaseUrlSecret
+    betterAuthSecretSecret
+  ]
 }
 
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer

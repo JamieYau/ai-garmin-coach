@@ -23,6 +23,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
+        allowInsecure: false
         external: true
         targetPort: 3000
         transport: 'auto'
@@ -82,6 +83,18 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'BETTER_AUTH_SECURE_COOKIES'
               value: 'true'
             }
+            {
+              name: 'BETTER_AUTH_RATE_LIMIT_ENABLED'
+              value: 'true'
+            }
+            {
+              name: 'BETTER_AUTH_RATE_LIMIT_WINDOW_SECONDS'
+              value: '60'
+            }
+            {
+              name: 'BETTER_AUTH_RATE_LIMIT_MAX_REQUESTS'
+              value: '20'
+            }
           ]
           resources: {
             cpu: json('0.25')
@@ -112,6 +125,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
+        allowInsecure: false
         external: true
         targetPort: 8000
         transport: 'auto'
@@ -174,6 +188,34 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'AI_PROVIDER'
               value: 'mock'
+            }
+            {
+              name: 'RATE_LIMIT_ENABLED'
+              value: 'true'
+            }
+            {
+              name: 'GARMIN_CONNECTION_RATE_LIMIT_MAX_REQUESTS'
+              value: '5'
+            }
+            {
+              name: 'GARMIN_CONNECTION_RATE_LIMIT_WINDOW_SECONDS'
+              value: '60'
+            }
+            {
+              name: 'MANUAL_SYNC_RATE_LIMIT_MAX_REQUESTS'
+              value: '3'
+            }
+            {
+              name: 'MANUAL_SYNC_RATE_LIMIT_WINDOW_SECONDS'
+              value: '60'
+            }
+            {
+              name: 'AI_INSIGHT_RATE_LIMIT_MAX_REQUESTS'
+              value: '3'
+            }
+            {
+              name: 'AI_INSIGHT_RATE_LIMIT_WINDOW_SECONDS'
+              value: '60'
             }
           ]
           resources: {
@@ -256,6 +298,70 @@ resource scheduledSyncJob 'Microsoft.App/jobs@2024-03-01' = {
             {
               name: 'AI_PROVIDER'
               value: 'mock'
+            }
+          ]
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
+}
+
+resource migrationJob 'Microsoft.App/jobs@2024-03-01' = {
+  name: 'caj-garmin-coach-migrate'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${runtimeIdentityId}': {}
+    }
+  }
+  tags: tags
+  properties: {
+    environmentId: environmentId
+    configuration: {
+      triggerType: 'Manual'
+      replicaRetryLimit: 0
+      replicaTimeout: 1800
+      manualTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
+      registries: [
+        {
+          server: registryLoginServer
+          identity: runtimeIdentityId
+        }
+      ]
+      secrets: [
+        {
+          name: 'database-url'
+          keyVaultUrl: '${keyVaultUri}secrets/database-url'
+          identity: runtimeIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'database-migration'
+          image: '${registryLoginServer}/garmin-coach-backend:${backendImageTag}'
+          command: [
+            'alembic'
+            'upgrade'
+            'head'
+          ]
+          env: [
+            {
+              name: 'APP_ENV'
+              value: 'production'
+            }
+            {
+              name: 'DATABASE_URL'
+              secretRef: 'database-url'
             }
           ]
           resources: {

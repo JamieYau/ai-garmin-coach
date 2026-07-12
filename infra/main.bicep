@@ -30,6 +30,13 @@ param backendImageTag string = 'bootstrap'
 @description('Final public HTTPS frontend origin, without a trailing slash.')
 param frontendOrigin string = ''
 
+@secure()
+@description('Long random Better Auth secret. Provide only when configureRuntimeSecrets is true.')
+param betterAuthSecret string = ''
+
+@description('Create or update Key Vault runtime secrets from the secure deployment parameters.')
+param configureRuntimeSecrets bool = false
+
 var nameSuffix = toLower(take(uniqueString(subscription().id, resourceGroupName), 6))
 
 resource productionResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -55,6 +62,8 @@ module platform './modules/platform.bicep' = {
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
+    betterAuthSecret: betterAuthSecret
+    configureRuntimeSecrets: configureRuntimeSecrets
   }
 }
 

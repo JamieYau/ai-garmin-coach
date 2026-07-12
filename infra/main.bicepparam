@@ -10,3 +10,4 @@ param postgresAdministratorLogin = 'garminadmin'
 param postgresAdministratorPassword = readEnvironmentVariable('AZURE_POSTGRES_ADMIN_PASSWORD')
 
 param deployWorkloads = false
+param configureRuntimeSecrets = false

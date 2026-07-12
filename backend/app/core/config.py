@@ -1,7 +1,8 @@
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -44,6 +45,38 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.app_env.strip().lower() != "production":
+            return self
+
+        if not self.database_url:
+            raise ValueError("DATABASE_URL is required in production")
+        if not self.better_auth_secret or len(self.better_auth_secret) < 32:
+            raise ValueError("BETTER_AUTH_SECRET must contain at least 32 characters in production")
+
+        for setting_name, origin in (
+            ("FRONTEND_URL", self.frontend_url),
+            ("BETTER_AUTH_URL", self.better_auth_url),
+        ):
+            parsed_origin = urlparse(origin)
+            if parsed_origin.scheme != "https" or not parsed_origin.netloc:
+                raise ValueError(f"{setting_name} must be an absolute HTTPS origin in production")
+
+        if not self.backend_cors_allow_credentials:
+            raise ValueError("BACKEND_CORS_ALLOW_CREDENTIALS must be enabled in production")
+        if self.backend_cors_origins != [self.frontend_url]:
+            raise ValueError(
+                "BACKEND_CORS_ORIGINS must contain exactly FRONTEND_URL in production"
+            )
+        if any(
+            urlparse(origin).scheme != "https" or not urlparse(origin).netloc
+            for origin in self.backend_cors_origins
+        ):
+            raise ValueError("BACKEND_CORS_ORIGINS must contain only absolute HTTPS origins")
+
+        return self
 
     def require_database_url(self) -> str:
         if not self.database_url:
