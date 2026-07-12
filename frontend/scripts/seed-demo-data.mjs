@@ -1,6 +1,7 @@
 import nextEnv from "@next/env";
 import { hashPassword } from "better-auth/crypto";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
@@ -242,6 +243,11 @@ async function ensureRequiredTables(client) {
 async function upsertDemoAuth(client, { email, password, name }) {
   const passwordHash = await hashPassword(password);
   const now = new Date();
+  const existingUser = await client.query(
+    `SELECT "id" FROM "user" WHERE "email" = $1 FOR UPDATE`,
+    [email],
+  );
+  const userId = existingUser.rows[0]?.id ?? DEMO_USER_ID;
 
   await client.query(
     `
@@ -253,7 +259,7 @@ async function upsertDemoAuth(client, { email, password, name }) {
       "emailVerified" = true,
       "updatedAt" = EXCLUDED."updatedAt"
     `,
-    [DEMO_USER_ID, name, email, now],
+    [userId, name, email, now],
   );
 
   await client.query(
@@ -261,7 +267,7 @@ async function upsertDemoAuth(client, { email, password, name }) {
     DELETE FROM "account"
     WHERE "userId" = $1 AND "providerId" = 'credential'
     `,
-    [DEMO_USER_ID],
+    [userId],
   );
 
   await client.query(
@@ -277,33 +283,41 @@ async function upsertDemoAuth(client, { email, password, name }) {
     )
     VALUES ($1, $2, 'credential', $2, $3, $4, $4)
     `,
-    [`${DEMO_USER_ID}-credential`, DEMO_USER_ID, passwordHash, now],
+    [`${userId}-credential`, userId, passwordHash, now],
   );
+
+  return userId;
 }
 
-async function resetDemoAppData(client) {
+async function resetDemoAppData(client, appUserId) {
   await client.query(`DELETE FROM coach_insights WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
+    appUserId,
   ]);
   await client.query(`DELETE FROM sleep_sessions WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
+    appUserId,
   ]);
   await client.query(`DELETE FROM daily_metrics WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
+    appUserId,
   ]);
-  await client.query(`DELETE FROM activities WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
-  ]);
-  await client.query(`DELETE FROM sync_runs WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
-  ]);
+  await client.query(`DELETE FROM activities WHERE user_id = $1`, [appUserId]);
+  await client.query(`DELETE FROM sync_runs WHERE user_id = $1`, [appUserId]);
   await client.query(`DELETE FROM source_connections WHERE user_id = $1`, [
-    DEMO_APP_USER_ID,
+    appUserId,
   ]);
 }
 
-async function seedAppUserAndConnection(client, { email, name }) {
+async function seedAppUserAndConnection(
+  client,
+  { email, name, betterAuthUserId },
+) {
   const now = new Date();
+  const existingAppUser = await client.query(
+    `SELECT id FROM app_users WHERE better_auth_user_id = $1 FOR UPDATE`,
+    [betterAuthUserId],
+  );
+  const appUserId = existingAppUser.rows[0]?.id ?? randomUUID();
+  const connectionId = randomUUID();
+  const syncRunId = randomUUID();
 
   await client.query(
     `
@@ -323,7 +337,7 @@ async function seedAppUserAndConnection(client, { email, name }) {
       display_name = EXCLUDED.display_name,
       updated_at = EXCLUDED.updated_at
     `,
-    [DEMO_APP_USER_ID, DEMO_USER_ID, email, name, now],
+    [appUserId, betterAuthUserId, email, name, now],
   );
 
   await client.query(
@@ -343,8 +357,8 @@ async function seedAppUserAndConnection(client, { email, name }) {
     VALUES ($1, $2, 'garmin', 'active', 'demo-garmin-user', 'Demo Garmin', $3, $4, $4, $4)
     `,
     [
-      DEMO_CONNECTION_ID,
-      DEMO_APP_USER_ID,
+      connectionId,
+      appUserId,
       JSON.stringify({ demo: true, credentials_required: false }),
       now,
     ],
@@ -371,17 +385,13 @@ async function seedAppUserAndConnection(client, { email, name }) {
     )
     VALUES ($1, $2, $3, 'succeeded', 'backfill', $4, $4, $5, $4, 30, 30, NULL, NULL, $4, $4)
     `,
-    [
-      DEMO_SYNC_RUN_ID,
-      DEMO_APP_USER_ID,
-      DEMO_CONNECTION_ID,
-      now,
-      isoDateTime(-13, 0),
-    ],
+    [syncRunId, appUserId, connectionId, now, isoDateTime(-13, 0)],
   );
+
+  return { appUserId, connectionId, syncRunId };
 }
 
-async function seedActivities(client, activities) {
+async function seedActivities(client, activities, { appUserId, connectionId }) {
   for (const activity of activities) {
     const startedAt = isoDateTime(
       activity.dayOffset,
@@ -421,8 +431,8 @@ async function seedActivities(client, activities) {
       `,
       [
         activity.id,
-        DEMO_APP_USER_ID,
-        DEMO_CONNECTION_ID,
+        appUserId,
+        connectionId,
         activity.sourceActivityId,
         activity.type,
         activity.name,
@@ -447,7 +457,11 @@ async function seedActivities(client, activities) {
   }
 }
 
-async function seedDailyMetrics(client, dailyMetrics) {
+async function seedDailyMetrics(
+  client,
+  dailyMetrics,
+  { appUserId, connectionId },
+) {
   for (const metric of dailyMetrics) {
     await client.query(
       `
@@ -476,8 +490,8 @@ async function seedDailyMetrics(client, dailyMetrics) {
       `,
       [
         metric.id,
-        DEMO_APP_USER_ID,
-        DEMO_CONNECTION_ID,
+        appUserId,
+        connectionId,
         metric.metricDate,
         metric.steps,
         metric.calories,
@@ -497,7 +511,11 @@ async function seedDailyMetrics(client, dailyMetrics) {
   }
 }
 
-async function seedSleepSessions(client, sleepSessions) {
+async function seedSleepSessions(
+  client,
+  sleepSessions,
+  { appUserId, connectionId },
+) {
   for (const sleep of sleepSessions) {
     await client.query(
       `
@@ -526,8 +544,8 @@ async function seedSleepSessions(client, sleepSessions) {
       `,
       [
         sleep.id,
-        DEMO_APP_USER_ID,
-        DEMO_CONNECTION_ID,
+        appUserId,
+        connectionId,
         sleep.sourceSleepId,
         sleep.sleepDate,
         sleep.startedAt,
@@ -547,7 +565,7 @@ async function seedSleepSessions(client, sleepSessions) {
   }
 }
 
-async function seedCoachInsight(client) {
+async function seedCoachInsight(client, { appUserId, syncRunId }) {
   const insightDate = isoDate(0);
   const generatedAt = isoDateTime(0, 9, 15);
 
@@ -576,8 +594,8 @@ async function seedCoachInsight(client) {
     `,
     [
       "77777777-7777-4777-8777-777777777777",
-      DEMO_APP_USER_ID,
-      DEMO_SYNC_RUN_ID,
+      appUserId,
+      syncRunId,
       insightDate,
       "Keep aerobic volume steady",
       "Recent training is consistent, sleep quality is stable, and recovery markers support a controlled aerobic session.",
@@ -608,13 +626,30 @@ export async function seedDemoData() {
   try {
     await client.query("BEGIN");
     await ensureRequiredTables(client);
-    await upsertDemoAuth(client, { email, password, name });
-    await resetDemoAppData(client);
-    await seedAppUserAndConnection(client, { email, name });
-    await seedActivities(client, dataset.activities);
-    await seedDailyMetrics(client, dataset.dailyMetrics);
-    await seedSleepSessions(client, dataset.sleepSessions);
-    await seedCoachInsight(client);
+    const betterAuthUserId = await upsertDemoAuth(client, {
+      email,
+      password,
+      name,
+    });
+    const existingAppUser = await client.query(
+      `SELECT id FROM app_users WHERE better_auth_user_id = $1 FOR UPDATE`,
+      [betterAuthUserId],
+    );
+    const appUserId = existingAppUser.rows[0]?.id;
+
+    if (appUserId) {
+      await resetDemoAppData(client, appUserId);
+    }
+
+    const ownership = await seedAppUserAndConnection(client, {
+      email,
+      name,
+      betterAuthUserId,
+    });
+    await seedActivities(client, dataset.activities, ownership);
+    await seedDailyMetrics(client, dataset.dailyMetrics, ownership);
+    await seedSleepSessions(client, dataset.sleepSessions, ownership);
+    await seedCoachInsight(client, ownership);
     await client.query("COMMIT");
 
     return {
