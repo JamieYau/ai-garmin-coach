@@ -346,6 +346,11 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) 
           keyVaultUrl: '${keyVaultUri}secrets/database-url'
           identity: runtimeIdentityId
         }
+        {
+          name: 'better-auth-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/better-auth-secret'
+          identity: runtimeIdentityId
+        }
       ]
     }
     template: {
@@ -366,6 +371,10 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) 
             {
               name: 'DATABASE_URL'
               secretRef: 'database-url'
+            }
+            {
+              name: 'BETTER_AUTH_SECRET'
+              secretRef: 'better-auth-secret'
             }
           ]
           resources: {
