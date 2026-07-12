@@ -354,7 +354,7 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) 
           name: 'database-migration'
           image: '${registryLoginServer}/garmin-coach-backend:${backendImageTag}'
           command: [
-            'alembic'
+            '/app/.venv/bin/alembic'
             'upgrade'
             'head'
           ]

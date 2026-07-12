@@ -95,7 +95,8 @@ FQDNs later without changing the resource topology.
 
 The backend migration job (`caj-garmin-coach-migrate`) is also defined with the
 workloads. It has no ingress and runs `alembic upgrade head` once per manual
-execution using the Key Vault database secret. Phase 12.4 will start it after
+execution using the Key Vault database secret (via `/app/.venv/bin/alembic` in
+the production image). Phase 12.4 will start it after
 pushing the backend image and before updating the API revision.
 
 ## GitHub Actions OIDC Bootstrap
