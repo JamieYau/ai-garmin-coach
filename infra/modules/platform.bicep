@@ -21,6 +21,7 @@ param betterAuthSecret string
 param configureRuntimeSecrets bool
 param githubRepository string
 param configureGithubOidc bool
+param configureRoleAssignments bool
 
 var resourcePrefix = '${projectName}-${nameSuffix}'
 var tags = {
@@ -185,7 +186,7 @@ resource githubMainFederatedCredential 'Microsoft.ManagedIdentity/userAssignedId
   }
 }
 
-resource githubDeploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+resource githubDeploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc && configureRoleAssignments) {
   name: guid(resourceGroup().id, githubDeploymentIdentity.id, contributorRoleDefinitionId)
   properties: {
     principalId: githubDeploymentIdentity!.properties.principalId
@@ -194,7 +195,7 @@ resource githubDeploymentContributor 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
-resource githubDeploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+resource githubDeploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc && configureRoleAssignments) {
   name: guid(containerRegistry.id, githubDeploymentIdentity.id, acrPushRoleDefinitionId)
   scope: containerRegistry
   properties: {
@@ -204,7 +205,7 @@ resource githubDeploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-0
   }
 }
 
-resource githubDeploymentKeyVaultSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+resource githubDeploymentKeyVaultSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc && configureRoleAssignments) {
   name: guid(keyVault.id, githubDeploymentIdentity.id, keyVaultSecretsOfficerRoleDefinitionId)
   scope: keyVault
   properties: {
@@ -214,7 +215,7 @@ resource githubDeploymentKeyVaultSecretsOfficer 'Microsoft.Authorization/roleAss
   }
 }
 
-resource runtimeAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource runtimeAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureRoleAssignments) {
   name: guid(containerRegistry.id, runtimeIdentity.id, acrPullRoleDefinitionId)
   scope: containerRegistry
   properties: {
@@ -224,7 +225,7 @@ resource runtimeAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource runtimeKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource runtimeKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureRoleAssignments) {
   name: guid(keyVault.id, runtimeIdentity.id, keyVaultSecretsUserRoleDefinitionId)
   scope: keyVault
   properties: {

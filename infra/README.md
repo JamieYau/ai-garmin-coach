@@ -114,15 +114,18 @@ az deployment sub create \
   --location uksouth \
   --template-file infra/main.bicep \
   --parameters infra/main.bicepparam \
-  --parameters \
-    "githubRepository=$GITHUB_REPOSITORY" \
-    configureGithubOidc=true
+    --parameters \
+      "githubRepository=$GITHUB_REPOSITORY" \
+    configureGithubOidc=true \
+    configureRoleAssignments=true
 ```
 
 The command creates an identity trusted only for `refs/heads/main` of that
-repository. It grants **Contributor** on this resource group, **AcrPush** on
-the registry, and **Key Vault Secrets Officer** on the vault. Those roles let
-the workflow deploy this MVP without subscription-wide permissions.
+repository. It also creates the one-time runtime and GitHub role assignments:
+**Contributor** on this resource group, **AcrPush** on the registry, and **Key
+Vault Secrets Officer** on the vault. Those roles let the workflow deploy this
+MVP without subscription-wide permissions. Normal GitHub deployments leave
+these role assignments unchanged.
 
 Read the deployment client ID from the bootstrap deployment and set these
 GitHub Actions **variables** in the repository settings:

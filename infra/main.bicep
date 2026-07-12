@@ -52,6 +52,9 @@ param githubRepository string = ''
 @description('Create the GitHub Actions OIDC managed identity, federated credential, and deployment roles.')
 param configureGithubOidc bool = false
 
+@description('Create one-time Azure RBAC role assignments for runtime and GitHub deployment identities.')
+param configureRoleAssignments bool = false
+
 var nameSuffix = toLower(take(uniqueString(subscription().id, resourceGroupName), 6))
 
 resource productionResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -84,6 +87,7 @@ module platform './modules/platform.bicep' = {
     configureRuntimeSecrets: configureRuntimeSecrets
     githubRepository: githubRepository
     configureGithubOidc: configureGithubOidc
+    configureRoleAssignments: configureRoleAssignments
   }
 }
 

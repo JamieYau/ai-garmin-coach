@@ -15,4 +15,5 @@ param deployScheduledSyncJob = false
 param deployMigrationJob = false
 param configureRuntimeSecrets = false
 param configureGithubOidc = false
+param configureRoleAssignments = false
 param betterAuthSecret = readEnvironmentVariable('AZURE_BETTER_AUTH_SECRET', '')

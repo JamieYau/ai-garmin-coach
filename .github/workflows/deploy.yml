@@ -31,7 +31,7 @@ jobs:
       AZURE_BETTER_AUTH_SECRET: ${{ secrets.AZURE_BETTER_AUTH_SECRET }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -89,8 +89,6 @@ jobs:
             --template-file infra/deploy.bicep \
             --parameters infra/deploy.bicepparam \
             --parameters \
-              "githubRepository=$GITHUB_REPOSITORY" \
-              configureGithubOidc=true \
               configureRuntimeSecrets=true \
               deployMigrationJob=true \
               "backendImageTag=$DEPLOY_SHA"
@@ -130,8 +128,6 @@ jobs:
             --template-file infra/deploy.bicep \
             --parameters infra/deploy.bicepparam \
             --parameters \
-              "githubRepository=$GITHUB_REPOSITORY" \
-              configureGithubOidc=true \
               configureRuntimeSecrets=true \
               deployApiApp=true \
               deployMigrationJob=true \
@@ -164,8 +160,6 @@ jobs:
             --template-file infra/deploy.bicep \
             --parameters infra/deploy.bicepparam \
             --parameters \
-              "githubRepository=$GITHUB_REPOSITORY" \
-              configureGithubOidc=true \
               configureRuntimeSecrets=true \
               deployFrontendApp=true \
               deployApiApp=true \
@@ -188,8 +182,6 @@ jobs:
             --template-file infra/deploy.bicep \
             --parameters infra/deploy.bicepparam \
             --parameters \
-              "githubRepository=$GITHUB_REPOSITORY" \
-              configureGithubOidc=true \
               configureRuntimeSecrets=true \
               deployFrontendApp=true \
               deployApiApp=true \

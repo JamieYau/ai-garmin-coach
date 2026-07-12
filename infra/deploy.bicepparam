@@ -10,3 +10,4 @@ param deployScheduledSyncJob = false
 param deployMigrationJob = false
 param configureRuntimeSecrets = false
 param configureGithubOidc = false
+param configureRoleAssignments = false

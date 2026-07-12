@@ -29,6 +29,7 @@ param betterAuthSecret string = ''
 param configureRuntimeSecrets bool = false
 param githubRepository string = ''
 param configureGithubOidc bool = false
+param configureRoleAssignments bool = false
 
 var nameSuffix = toLower(take(uniqueString(subscription().id, resourceGroup().name), 6))
 
@@ -51,6 +52,7 @@ module platform './modules/platform.bicep' = {
     configureRuntimeSecrets: configureRuntimeSecrets
     githubRepository: githubRepository
     configureGithubOidc: configureGithubOidc
+    configureRoleAssignments: configureRoleAssignments
   }
 }
 
