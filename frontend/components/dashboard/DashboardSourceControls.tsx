@@ -8,6 +8,7 @@ import {
   LockKeyhole,
   PlugZap,
   RefreshCw,
+  Sparkles,
   Unplug,
   X,
 } from "lucide-react";
@@ -32,6 +33,9 @@ export type DashboardSourceControlsProps = {
   connectStatus?: ActionStatus;
   connectResult?: GarminConnectionResponse | null;
   connectErrorMessage?: string | null;
+  demoStatus?: ActionStatus;
+  demoResult?: ManualSyncResponse | null;
+  demoErrorMessage?: string | null;
   manualSyncStatus?: ActionStatus;
   manualSyncResult?: ManualSyncResponse | null;
   manualSyncErrorMessage?: string | null;
@@ -39,6 +43,7 @@ export type DashboardSourceControlsProps = {
   disconnectErrorMessage?: string | null;
   isDisconnectConfirming?: boolean;
   onConnect: (request: GarminConnectionRequest) => void;
+  onLoadDemoData?: () => void;
   onManualSync: () => void;
   onDisconnectRequest: () => void;
   onDisconnectCancel: () => void;
@@ -61,6 +66,9 @@ export function DashboardSourceControls({
   connectStatus = "idle",
   connectResult,
   connectErrorMessage,
+  demoStatus = "idle",
+  demoResult,
+  demoErrorMessage,
   manualSyncStatus = "idle",
   manualSyncResult,
   manualSyncErrorMessage,
@@ -68,6 +76,7 @@ export function DashboardSourceControls({
   disconnectErrorMessage,
   isDisconnectConfirming = false,
   onConnect,
+  onLoadDemoData = () => undefined,
   onManualSync,
   onDisconnectRequest,
   onDisconnectCancel,
@@ -84,22 +93,28 @@ export function DashboardSourceControls({
   const hasActiveSource = sync.active_sources > 0;
   const latestSyncRunning = sync.latest_sync_status === "running";
   const isConnectPending = connectStatus === "pending";
+  const isDemoPending = demoStatus === "pending";
   const isManualSyncPending = manualSyncStatus === "pending";
   const isDisconnectPending = disconnectStatus === "pending";
   const connectionRequiresMfa =
     connectResult?.requires_mfa || connectResult?.status === "mfa_required";
   const canSubmitConnection =
-    !isConnectPending && !isManualSyncPending && !isDisconnectPending;
+    !isConnectPending &&
+    !isDemoPending &&
+    !isManualSyncPending &&
+    !isDisconnectPending;
   const canManualSync =
     hasConnectedSource &&
     hasActiveSource &&
     !latestSyncRunning &&
     !isConnectPending &&
+    !isDemoPending &&
     !isManualSyncPending &&
     !isDisconnectPending;
   const canDisconnect =
     hasConnectedSource &&
     !isConnectPending &&
+    !isDemoPending &&
     !isManualSyncPending &&
     !isDisconnectPending;
 
@@ -229,9 +244,7 @@ export function DashboardSourceControls({
           </div>
 
           {validationMessage ? (
-            <p className="mt-3 text-sm text-destructive">
-              {validationMessage}
-            </p>
+            <p className="mt-3 text-sm text-destructive">{validationMessage}</p>
           ) : null}
 
           {hasActiveSource ? (
@@ -240,6 +253,49 @@ export function DashboardSourceControls({
             </p>
           ) : null}
         </form>
+
+        <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-sm font-medium">Explore with demo data</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                Load a private set of realistic synthetic training and recovery
+                records. No Garmin account or credentials are needed.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onLoadDemoData}
+              disabled={!canSubmitConnection}
+            >
+              {isDemoPending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Sparkles aria-hidden="true" />
+              )}
+              {sync.has_demo_data ? "Refresh demo data" : "Load demo data"}
+            </Button>
+          </div>
+        </div>
+
+        {demoStatus === "success" ? (
+          <Alert>
+            <CheckCircle2 aria-hidden="true" />
+            <AlertTitle>Demo data loaded</AlertTitle>
+            <AlertDescription>{manualSyncMessage(demoResult)}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {demoStatus === "error" ? (
+          <Alert variant="destructive">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>Demo data could not be loaded</AlertTitle>
+            <AlertDescription>
+              {demoErrorMessage ?? "Try again in a moment."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {connectStatus === "success" && connectionRequiresMfa ? (
           <Alert>

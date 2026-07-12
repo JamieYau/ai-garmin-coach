@@ -18,11 +18,13 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.models import AppUser
 from app.schemas.connections import ConnectionResponse, GarminConnectionCreate
+from app.schemas.sync import ManualSyncResponse
 from app.services.data_lifecycle import (
     DisconnectSourceResult,
     SourceConnectionNotFoundError,
     disconnect_source,
 )
+from app.services.demo_data import DemoDataService
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -54,6 +56,21 @@ def get_garmin_connection_service(
     return GarminConnectionService(
         GarminConnectionSettings(encryption_secret=settings.better_auth_secret)
     )
+
+
+def get_demo_data_service() -> DemoDataService:
+    return DemoDataService()
+
+
+@router.post("/demo", response_model=ManualSyncResponse)
+async def load_demo_data(
+    current_user: Annotated[AppUser, Depends(get_current_app_user)],
+    db: Annotated[Session, Depends(get_db)],
+    service: Annotated[DemoDataService, Depends(get_demo_data_service)],
+) -> ManualSyncResponse:
+    """Load synthetic dashboard records without collecting Garmin credentials."""
+    sync_run = await service.load_dashboard_data(db, current_user)
+    return ManualSyncResponse.model_validate(sync_run)
 
 
 @router.post("/garmin", response_model=ConnectionResponse)

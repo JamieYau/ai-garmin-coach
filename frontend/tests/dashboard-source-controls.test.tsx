@@ -20,6 +20,7 @@ const inactiveSync: DashboardOverviewResponse["sync"] = {
 
 const handlers = {
   onConnect: vi.fn(),
+  onLoadDemoData: vi.fn(),
   onManualSync: vi.fn(),
   onDisconnectRequest: vi.fn(),
   onDisconnectCancel: vi.fn(),
@@ -171,6 +172,46 @@ describe("DashboardSourceControls", () => {
     expect(successMarkup).toContain("Imported 4 of 5 records");
     expect(errorMarkup).toContain("Manual sync failed");
     expect(errorMarkup).toContain("Too many requests");
+  });
+
+  it("renders a credential-free demo action and its result states", () => {
+    const successMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={activeSync}
+        demoStatus="success"
+        demoResult={{
+          id: "demo-sync-run-1",
+          source_connection_id: "demo-source-1",
+          status: "succeeded",
+          sync_type: "backfill",
+          window_start: "2026-07-01T00:00:00Z",
+          window_end: "2026-07-14T23:59:59Z",
+          records_seen: 50,
+          records_imported: 50,
+          error_code: null,
+          started_at: "2026-07-14T10:00:00Z",
+          completed_at: "2026-07-14T10:00:01Z",
+        }}
+        {...handlers}
+      />,
+    );
+    const errorMarkup = renderToStaticMarkup(
+      <DashboardSourceControls
+        sync={activeSync}
+        demoStatus="error"
+        demoErrorMessage="Demo records are temporarily unavailable."
+        {...handlers}
+      />,
+    );
+
+    expect(successMarkup).toContain("Explore with demo data");
+    expect(successMarkup).toContain(
+      "No Garmin account or credentials are needed",
+    );
+    expect(successMarkup).toContain("Demo data loaded");
+    expect(successMarkup).toContain("Imported 50 of 50 records");
+    expect(errorMarkup).toContain("Demo data could not be loaded");
+    expect(errorMarkup).toContain("Demo records are temporarily unavailable");
   });
 
   it("renders disconnect confirmation and success states", () => {

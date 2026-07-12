@@ -124,3 +124,19 @@ def test_connect_garmin_can_return_mfa_required_state() -> None:
     assert response.json()["status"] == "mfa_required"
     assert response.json()["requires_mfa"] is True
     assert response.json()["id"] is None
+
+
+def test_load_demo_data_does_not_accept_or_require_garmin_credentials() -> None:
+    service = FakeGarminConnectionService(ConnectionResponse(source="garmin", status="active"))
+    client, db, _user = _create_client(service)
+
+    try:
+        response = client.post("/connections/demo")
+    finally:
+        db.close()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "succeeded"
+    assert response.json()["sync_type"] == "backfill"
+    assert response.json()["records_imported"] > 0
+    assert service.seen_request is None

@@ -8,6 +8,7 @@ import { ErrorState, Skeleton } from "@/components/states";
 import {
   useConnectGarminMutation,
   useDisconnectGarminMutation,
+  useLoadDemoDataMutation,
   useManualSyncMutation,
 } from "@/hooks/useDataControls";
 import { useDashboardOverviewQuery } from "@/hooks/useDashboard";
@@ -84,6 +85,7 @@ export function DashboardSourcesClient() {
   const overviewQuery = useDashboardOverviewQuery();
   const [isDisconnectConfirming, setIsDisconnectConfirming] = useState(false);
   const connectMutation = useConnectGarminMutation();
+  const demoMutation = useLoadDemoDataMutation();
   const manualSyncMutation = useManualSyncMutation();
   const disconnectMutation = useDisconnectGarminMutation({
     onSuccess: () => {
@@ -119,6 +121,12 @@ export function DashboardSourcesClient() {
           connectErrorMessage={garminConnectionErrorMessage(
             connectMutation.error,
           )}
+          demoStatus={demoMutation.status}
+          demoResult={demoMutation.data}
+          demoErrorMessage={dataControlErrorMessage(
+            demoMutation.error,
+            "Demo data loading",
+          )}
           manualSyncStatus={manualSyncMutation.status}
           manualSyncResult={manualSyncMutation.data}
           manualSyncErrorMessage={dataControlErrorMessage(
@@ -132,6 +140,7 @@ export function DashboardSourcesClient() {
           )}
           isDisconnectConfirming={isDisconnectConfirming}
           onConnect={(request) => connectMutation.mutate(request)}
+          onLoadDemoData={() => demoMutation.mutate()}
           onManualSync={() => manualSyncMutation.mutate({ source: "garmin" })}
           onDisconnectRequest={() => setIsDisconnectConfirming(true)}
           onDisconnectCancel={() => setIsDisconnectConfirming(false)}
