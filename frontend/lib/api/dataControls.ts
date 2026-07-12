@@ -96,6 +96,12 @@ export function connectGarmin(request: GarminConnectionRequest) {
   });
 }
 
+export function loadDemoData() {
+  return apiFetchJson<ManualSyncResponse>("/connections/demo", {
+    method: "POST",
+  });
+}
+
 export function disconnectGarmin() {
   return apiFetchJson<DisconnectGarminResponse>("/connections/garmin", {
     method: "DELETE",

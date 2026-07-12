@@ -13,6 +13,7 @@ import {
   deleteAccountData,
   deleteSyncedData,
   disconnectGarmin,
+  loadDemoData,
   triggerManualSync,
   type DeleteAccountDataResponse,
   type DeleteSyncedDataResponse,
@@ -65,6 +66,21 @@ export function useConnectGarminMutation(
       if (!data.requires_mfa) {
         await invalidateDashboardData(queryClient);
       }
+      await options?.onSuccess?.(data, variables, onMutateResult, context);
+    },
+  });
+}
+
+export function useLoadDemoDataMutation(
+  options?: DataControlMutationOptions<ManualSyncResponse, void>,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...options,
+    mutationFn: loadDemoData,
+    onSuccess: async (data, variables, onMutateResult, context) => {
+      await invalidateDashboardData(queryClient);
       await options?.onSuccess?.(data, variables, onMutateResult, context);
     },
   });
