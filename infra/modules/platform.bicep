@@ -7,7 +7,10 @@ param postgresAdministratorLogin string
 @secure()
 param postgresAdministratorPassword string
 
-param deployWorkloads bool
+param deployFrontendApp bool
+param deployApiApp bool
+param deployScheduledSyncJob bool
+param deployMigrationJob bool
 param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
@@ -16,6 +19,8 @@ param frontendOrigin string
 param betterAuthSecret string
 
 param configureRuntimeSecrets bool
+param githubRepository string
+param configureGithubOidc bool
 
 var resourcePrefix = '${projectName}-${nameSuffix}'
 var tags = {
@@ -24,7 +29,10 @@ var tags = {
   managedBy: 'bicep'
 }
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var acrPushRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+var keyVaultSecretsOfficerRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 var databaseHost = postgresServer.properties.fullyQualifiedDomainName
 var encodedPostgresPassword = uriComponent(postgresAdministratorPassword)
 var databaseUrl = 'postgresql+psycopg://${postgresAdministratorLogin}:${encodedPostgresPassword}@${databaseHost}:5432/garmin_coach?sslmode=require'
@@ -159,6 +167,53 @@ resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   tags: tags
 }
 
+resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (configureGithubOidc) {
+  name: 'id-${resourcePrefix}-github-deploy'
+  location: location
+  tags: tags
+}
+
+resource githubMainFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = if (configureGithubOidc) {
+  parent: githubDeploymentIdentity
+  name: 'github-main'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: 'repo:${githubRepository}:ref:refs/heads/main'
+  }
+}
+
+resource githubDeploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+  name: guid(resourceGroup().id, githubDeploymentIdentity.id, contributorRoleDefinitionId)
+  properties: {
+    principalId: githubDeploymentIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributorRoleDefinitionId
+  }
+}
+
+resource githubDeploymentAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+  name: guid(containerRegistry.id, githubDeploymentIdentity.id, acrPushRoleDefinitionId)
+  scope: containerRegistry
+  properties: {
+    principalId: githubDeploymentIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: acrPushRoleDefinitionId
+  }
+}
+
+resource githubDeploymentKeyVaultSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (configureGithubOidc) {
+  name: guid(keyVault.id, githubDeploymentIdentity.id, keyVaultSecretsOfficerRoleDefinitionId)
+  scope: keyVault
+  properties: {
+    principalId: githubDeploymentIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: keyVaultSecretsOfficerRoleDefinitionId
+  }
+}
+
 resource runtimeAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(containerRegistry.id, runtimeIdentity.id, acrPullRoleDefinitionId)
   scope: containerRegistry
@@ -264,7 +319,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
   }
 }
 
-module workloads './workloads.bicep' = if (deployWorkloads) {
+module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || deployScheduledSyncJob || deployMigrationJob) {
   name: 'garmin-coach-workloads'
   params: {
     location: location
@@ -275,6 +330,10 @@ module workloads './workloads.bicep' = if (deployWorkloads) {
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
+    deployFrontendApp: deployFrontendApp
+    deployApiApp: deployApiApp
+    deployScheduledSyncJob: deployScheduledSyncJob
+    deployMigrationJob: deployMigrationJob
     tags: tags
   }
   dependsOn: [
@@ -287,5 +346,6 @@ module workloads './workloads.bicep' = if (deployWorkloads) {
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
 output keyVaultUri string = keyVault.properties.vaultUri
 output postgresServerFqdn string = postgresServer.properties.fullyQualifiedDomainName
-output frontendFqdn string = deployWorkloads ? workloads!.outputs.frontendFqdn : ''
-output apiFqdn string = deployWorkloads ? workloads!.outputs.apiFqdn : ''
+output frontendFqdn string = deployFrontendApp ? workloads!.outputs.frontendFqdn : ''
+output apiFqdn string = deployApiApp ? workloads!.outputs.apiFqdn : ''
+output githubDeploymentClientId string = configureGithubOidc ? githubDeploymentIdentity!.properties.clientId : ''

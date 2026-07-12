@@ -1,0 +1,200 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: garmin-coach-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Azure Container Apps
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_POSTGRES_ADMIN_PASSWORD: ${{ secrets.AZURE_POSTGRES_ADMIN_PASSWORD }}
+      AZURE_BETTER_AUTH_SECRET: ${{ secrets.AZURE_BETTER_AUTH_SECRET }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verify deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in AZURE_RESOURCE_GROUP AZURE_POSTGRES_ADMIN_PASSWORD AZURE_BETTER_AUTH_SECRET; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error title=Missing deployment configuration::$variable must be configured before deployment."
+              exit 1
+            fi
+          done
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure CLI dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install
+          az extension add --name containerapp --upgrade --yes
+
+      - name: Resolve Azure Container Registry
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_name="$(az acr list --resource-group "$AZURE_RESOURCE_GROUP" --query "[?tags.application=='ai-garmin-coach'].name | [0]" --output tsv)"
+          test -n "$registry_name"
+          echo "name=$registry_name" >> "$GITHUB_OUTPUT"
+          echo "login_server=${registry_name}.azurecr.io" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "${{ steps.registry.outputs.name }}"
+          image="${{ steps.registry.outputs.login_server }}/garmin-coach-backend:$DEPLOY_SHA"
+          docker build --tag "$image" ./backend
+          docker push "$image"
+
+      - name: Provision migration job and runtime secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment group create \
+            --name "garmin-coach-migration-${DEPLOY_SHA:0:12}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/deploy.bicep \
+            --parameters infra/deploy.bicepparam \
+            --parameters \
+              "githubRepository=$GITHUB_REPOSITORY" \
+              configureGithubOidc=true \
+              configureRuntimeSecrets=true \
+              deployMigrationJob=true \
+              "backendImageTag=$DEPLOY_SHA"
+
+      - name: Run database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          execution_name="$(az containerapp job start --name caj-garmin-coach-migrate --resource-group "$AZURE_RESOURCE_GROUP" --query name --output tsv)"
+          test -n "$execution_name"
+
+          for attempt in {1..60}; do
+            status="$(az containerapp job execution list --name caj-garmin-coach-migrate --resource-group "$AZURE_RESOURCE_GROUP" --query "[?name=='$execution_name'] | [0].properties.status" --output tsv)"
+            case "$status" in
+              Succeeded)
+                exit 0
+                ;;
+              Failed|Canceled)
+                echo "Migration job $execution_name ended with $status."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "Migration job $execution_name did not complete within ten minutes."
+          exit 1
+
+      - name: Deploy API and discover its HTTPS origin
+        id: api
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_fqdn="$(az deployment group create \
+            --name "garmin-coach-api-${DEPLOY_SHA:0:12}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/deploy.bicep \
+            --parameters infra/deploy.bicepparam \
+            --parameters \
+              "githubRepository=$GITHUB_REPOSITORY" \
+              configureGithubOidc=true \
+              configureRuntimeSecrets=true \
+              deployApiApp=true \
+              deployMigrationJob=true \
+              "frontendOrigin=https://bootstrap.invalid" \
+              "backendImageTag=$DEPLOY_SHA" \
+            --query properties.outputs.apiFqdn.value \
+            --output tsv)"
+          test -n "$api_fqdn"
+          echo "origin=https://$api_fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push frontend image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.registry.outputs.login_server }}/garmin-coach-frontend:$DEPLOY_SHA"
+          docker build \
+            --build-arg "NEXT_PUBLIC_API_BASE_URL=${{ steps.api.outputs.origin }}" \
+            --tag "$image" \
+            ./frontend
+          docker push "$image"
+
+      - name: Deploy frontend and discover its HTTPS origin
+        id: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          frontend_fqdn="$(az deployment group create \
+            --name "garmin-coach-frontend-${DEPLOY_SHA:0:12}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/deploy.bicep \
+            --parameters infra/deploy.bicepparam \
+            --parameters \
+              "githubRepository=$GITHUB_REPOSITORY" \
+              configureGithubOidc=true \
+              configureRuntimeSecrets=true \
+              deployFrontendApp=true \
+              deployApiApp=true \
+              deployMigrationJob=true \
+              "frontendOrigin=https://bootstrap.invalid" \
+              "frontendImageTag=$DEPLOY_SHA" \
+              "backendImageTag=$DEPLOY_SHA" \
+            --query properties.outputs.frontendFqdn.value \
+            --output tsv)"
+          test -n "$frontend_fqdn"
+          echo "origin=https://$frontend_fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Apply final production configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment group create \
+            --name "garmin-coach-production-${DEPLOY_SHA:0:12}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/deploy.bicep \
+            --parameters infra/deploy.bicepparam \
+            --parameters \
+              "githubRepository=$GITHUB_REPOSITORY" \
+              configureGithubOidc=true \
+              configureRuntimeSecrets=true \
+              deployFrontendApp=true \
+              deployApiApp=true \
+              deployScheduledSyncJob=true \
+              deployMigrationJob=true \
+              "frontendOrigin=${{ steps.frontend.outputs.origin }}" \
+              "frontendImageTag=$DEPLOY_SHA" \
+              "backendImageTag=$DEPLOY_SHA"

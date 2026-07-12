@@ -7,8 +7,12 @@ param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
 param tags object
+param deployFrontendApp bool
+param deployApiApp bool
+param deployScheduledSyncJob bool
+param deployMigrationJob bool
 
-resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFrontendApp) {
   name: 'ca-garmin-coach-web'
   location: location
   identity: {
@@ -110,7 +114,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
-resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApiApp) {
   name: 'ca-garmin-coach-api'
   location: location
   identity: {
@@ -232,7 +236,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
-resource scheduledSyncJob 'Microsoft.App/jobs@2024-03-01' = {
+resource scheduledSyncJob 'Microsoft.App/jobs@2024-03-01' = if (deployScheduledSyncJob) {
   name: 'caj-garmin-coach-sync'
   location: location
   identity: {
@@ -310,7 +314,7 @@ resource scheduledSyncJob 'Microsoft.App/jobs@2024-03-01' = {
   }
 }
 
-resource migrationJob 'Microsoft.App/jobs@2024-03-01' = {
+resource migrationJob 'Microsoft.App/jobs@2024-03-01' = if (deployMigrationJob) {
   name: 'caj-garmin-coach-migrate'
   location: location
   identity: {
@@ -374,5 +378,5 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = {
   }
 }
 
-output frontendFqdn string = frontendApp.properties.configuration.ingress.fqdn
-output apiFqdn string = apiApp.properties.configuration.ingress.fqdn
+output frontendFqdn string = deployFrontendApp ? frontendApp!.properties.configuration.ingress.fqdn : ''
+output apiFqdn string = deployApiApp ? apiApp!.properties.configuration.ingress.fqdn : ''

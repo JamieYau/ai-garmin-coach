@@ -5,7 +5,18 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "infra/**"
       - ".github/workflows/ci.yml"
+      - ".github/workflows/deploy.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infra/**"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/deploy.yml"
 
 permissions:
   contents: read

@@ -97,3 +97,71 @@ The backend migration job (`caj-garmin-coach-migrate`) is also defined with the
 workloads. It has no ingress and runs `alembic upgrade head` once per manual
 execution using the Key Vault database secret. Phase 12.4 will start it after
 pushing the backend image and before updating the API revision.
+
+## GitHub Actions OIDC Bootstrap
+
+The deployment workflow authenticates with a user-assigned managed identity and
+GitHub OIDC; it does not use an Azure client secret. This identity must be
+created once by an Azure user who can deploy the subscription-scoped bootstrap
+template. Do this after the baseline resource group exists and before merging
+the deployment workflow to `main`:
+
+```bash
+export GITHUB_REPOSITORY='owner/repository'
+
+az deployment sub create \
+  --name garmin-coach-github-oidc \
+  --location uksouth \
+  --template-file infra/main.bicep \
+  --parameters infra/main.bicepparam \
+  --parameters \
+    "githubRepository=$GITHUB_REPOSITORY" \
+    configureGithubOidc=true
+```
+
+The command creates an identity trusted only for `refs/heads/main` of that
+repository. It grants **Contributor** on this resource group, **AcrPush** on
+the registry, and **Key Vault Secrets Officer** on the vault. Those roles let
+the workflow deploy this MVP without subscription-wide permissions.
+
+Read the deployment client ID from the bootstrap deployment and set these
+GitHub Actions **variables** in the repository settings:
+
+```bash
+az deployment sub show \
+  --name garmin-coach-github-oidc \
+  --query 'properties.outputs.githubDeploymentClientId.value' \
+  --output tsv
+```
+
+- `AZURE_CLIENT_ID`: the command output above.
+- `AZURE_TENANT_ID`: `az account show --query tenantId --output tsv`.
+- `AZURE_SUBSCRIPTION_ID`: `az account show --query id --output tsv`.
+- `AZURE_RESOURCE_GROUP`: normally `rg-garmin-coach-prod`.
+
+Set these GitHub Actions **secrets** as well:
+
+- `AZURE_POSTGRES_ADMIN_PASSWORD`: the stable PostgreSQL administrator password.
+- `AZURE_BETTER_AUTH_SECRET`: the stable 32+-character Better Auth secret.
+
+Do not rotate either secret casually: the Better Auth secret derives the key
+used to encrypt stored Garmin session material. A future rotation must include
+a data migration.
+
+## Automated Main-Branch Deployment
+
+`CI` now runs for pushes to `main`. A successful CI run triggers
+`.github/workflows/deploy.yml`, which performs this ordered rollout:
+
+1. Authenticate through GitHub OIDC and push the immutable backend image to
+   Azure Container Registry.
+2. Apply the resource-group-scoped `infra/deploy.bicep` template to create the
+   runtime secrets and migration job, then start and wait for the migration.
+3. Deploy the API temporarily, discover its Azure HTTPS FQDN, build and push
+   the frontend with that API URL, then discover the frontend FQDN.
+4. Apply the final frontend/auth/CORS configuration, deploy both web apps, and
+   enable the scheduled sync job.
+
+`infra/main.bicep` remains the subscription-scoped one-time bootstrap template.
+The workflow uses `infra/deploy.bicep` at resource-group scope, which matches
+the managed identity's least-privilege role assignment.

@@ -73,9 +73,11 @@ naming rules require it.
 - Assign one user-managed runtime identity to the frontend, API, and job. It is
   created before the workloads so its `AcrPull` and Key Vault secret-read roles
   are available before private images or secrets are consumed.
-- GitHub Actions authenticates through Azure workload identity federation (OIDC)
-  in Phase 12.4. It receives deployment-scoped access only; no long-lived Azure
-  client secret is stored in GitHub.
+- GitHub Actions authenticates through an Azure user-assigned managed identity
+  and workload identity federation (OIDC). The federated credential trusts only
+  this repository's `main` branch; no long-lived Azure client secret is stored
+  in GitHub. The identity receives Contributor at this resource group, AcrPush
+  at the registry, and Key Vault Secrets Officer at the vault.
 
 ## Runtime Configuration and Secrets
 
@@ -122,9 +124,10 @@ also explicitly enabled in the frontend Container App.
 - The Student/free allowances can change and the database/monitoring usage can
   exceed them. Check the subscription's current offer, remaining credit, and
   UK-region availability in the Azure portal before Phase 12.2.
-- Deploy only immutable, versioned images. Phase 12.4 will build and push both
-  images after CI passes on `main`, run Alembic migrations once, then update the
-  Container Apps revisions.
+- Deploy only immutable, versioned images. After CI passes on `main`, the Phase
+  12.4 workflow pushes the backend image, runs Alembic through the manual job,
+  discovers the Azure HTTPS origins while staging the API/frontend, then applies
+  the final exact CORS/Auth configuration and enables scheduled sync.
 - Retain only sanitized logs. Revisit PostgreSQL backup retention and data
   deletion behavior before any public launch.
 
@@ -144,6 +147,13 @@ does not attempt to pull placeholder images or resolve Key Vault secrets.
 runtime secret values and Phase 12.4 pushes immutable images. The workload
 module also defines an ingress-free manual migration job that Phase 12.4 starts
 before deploying the backend revision.
+
+`infra/main.bicep` is intentionally subscription-scoped for the one-time
+resource-group and GitHub OIDC bootstrap. `infra/deploy.bicep` is equivalent at
+resource-group scope and is the template used by GitHub Actions after bootstrap.
+The deployment workflow runs only from a successful CI run on `main` (or a
+manual workflow dispatch) and serializes production deploys to avoid competing
+migrations.
 
 ## Explicit Non-Goals
 
