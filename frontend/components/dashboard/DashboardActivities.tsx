@@ -222,9 +222,9 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
   const latestActivity = activities[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6 sm:px-8 lg:px-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:px-10">
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
-        <div>
+        <div className="min-w-0">
           <Badge variant="secondary">Activities</Badge>
           <h1 className="mt-3 text-3xl font-semibold tracking-normal">
             Training activity
@@ -252,7 +252,7 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
       ) : (
         <>
           <section
-            className="grid gap-4 md:grid-cols-4"
+            className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4"
             aria-label="Activity totals"
           >
             <ActivityMetricCard
@@ -291,8 +291,8 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
             />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-            <Card>
+          <section className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <BarChart3
                   className="size-5 text-muted-foreground"
@@ -338,7 +338,7 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <Gauge
                   className="size-5 text-muted-foreground"
@@ -370,7 +370,7 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
             </Card>
           </section>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="flex-row items-center gap-3 space-y-0">
               <CalendarClock
                 className="size-5 text-muted-foreground"
@@ -379,7 +379,10 @@ export function DashboardActivities({ activities }: DashboardActivitiesProps) {
               <CardTitle>Recent activities</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table className="min-w-[760px]">
+              <Table
+                className="min-w-[760px]"
+                scrollHint="Swipe horizontally to view all activity details."
+              >
                 <TableHeader>
                   <TableRow className="text-xs font-medium text-muted-foreground hover:bg-transparent">
                     <TableHead className="px-0">Activity</TableHead>

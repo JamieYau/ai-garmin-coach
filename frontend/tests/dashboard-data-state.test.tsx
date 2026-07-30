@@ -158,6 +158,8 @@ describe("dashboard data state", () => {
     );
     expect(demoMarkup).toContain("Demo data is showing");
     expect(demoMarkup).toContain("local seeded demo records");
+    expect(demoMarkup).toContain("p-3 sm:gap-3 sm:p-4");
+    expect(demoMarkup).toContain("min-w-0");
 
     const failedMarkup = renderToStaticMarkup(
       <DashboardDataStateBanner state="sync-failed" />,

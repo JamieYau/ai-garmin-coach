@@ -52,5 +52,7 @@ describe("chart components", () => {
     expect(markup).toContain('data-slot="chart"');
     expect(markup).toContain('data-chart="chart-activity-summary"');
     expect(markup).toContain("--color-distance: var(--chart-1)");
+    expect(markup).toContain("w-full min-w-0");
+    expect(markup).toContain("overflow-hidden");
   });
 });
