@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { MainNav } from "@/components/navigation/MainNav";
 
 vi.mock("next/navigation", () => ({
@@ -47,5 +48,22 @@ describe("MainNav", () => {
     expect(markup).toContain('aria-label="Demo Runner account menu"');
     expect(markup).toContain("Demo Runner");
     expect(markup).not.toContain("hidden max-w-44");
+  });
+
+  it("provides a labelled mobile navigation trigger", () => {
+    const markup = renderToStaticMarkup(
+      <MainNav initialUser={{ email: "runner@example.com" }} />,
+    );
+
+    expect(markup).toContain('aria-label="Open navigation menu"');
+    expect(markup).toContain("lg:hidden");
+    expect(markup).toContain("hidden items-center gap-1 lg:flex");
+  });
+
+  it("keeps the Sheet sign-out action labelled at phone widths", () => {
+    const markup = renderToStaticMarkup(<SignOutButton showLabel />);
+
+    expect(markup).toContain('aria-label="Sign out"');
+    expect(markup).toContain('<span class="inline">Sign out</span>');
   });
 });

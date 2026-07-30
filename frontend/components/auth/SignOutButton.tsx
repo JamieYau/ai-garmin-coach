@@ -8,9 +8,13 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth/client";
 
 export function SignOutButton({
+  className,
   menuItem = false,
+  showLabel = false,
 }: Readonly<{
+  className?: string;
   menuItem?: boolean;
+  showLabel?: boolean;
 }>) {
   const router = useRouter();
   const signOut = () => {
@@ -26,7 +30,11 @@ export function SignOutButton({
 
   if (menuItem) {
     return (
-      <DropdownMenuItem onClick={signOut} variant="destructive">
+      <DropdownMenuItem
+        className={className}
+        onClick={signOut}
+        variant="destructive"
+      >
         <LogOut aria-hidden="true" />
         Sign out
       </DropdownMenuItem>
@@ -34,9 +42,18 @@ export function SignOutButton({
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={signOut}>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={className}
+      aria-label="Sign out"
+      onClick={signOut}
+    >
       <LogOut className="size-4" aria-hidden />
-      <span className="hidden sm:inline">Sign out</span>
+      <span className={showLabel ? "inline" : "hidden sm:inline"}>
+        Sign out
+      </span>
     </Button>
   );
 }
