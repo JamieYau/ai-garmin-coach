@@ -57,6 +57,8 @@ describe("DashboardActivities", () => {
       "Swipe horizontally to view all activity details.",
     );
     expect(markup).toContain("overscroll-x-contain");
+    expect(markup).toContain("grid min-w-0 gap-3");
+    expect(markup).toContain("shadow-sm min-w-0");
   });
 
   it("renders an empty activity state", () => {

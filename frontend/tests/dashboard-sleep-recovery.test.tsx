@@ -105,6 +105,8 @@ describe("DashboardSleepRecovery", () => {
     expect(markup).toContain(
       "Swipe horizontally to view all recovery details.",
     );
+    expect(markup).toContain("grid min-w-0 gap-3");
+    expect(markup).toContain("h-72 w-full");
   });
 
   it("renders an empty sleep and recovery state", () => {
