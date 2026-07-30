@@ -22,13 +22,30 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 
 describe("MainNav", () => {
-  it("links to the authenticated settings page", () => {
+  it("keeps the four primary destinations direct and places settings in More", () => {
     const markup = renderToStaticMarkup(
       <MainNav initialUser={{ email: "runner@example.com" }} />,
     );
 
-    expect(markup).toContain('href="/settings"');
-    expect(markup).toContain("Settings");
-    expect(markup).toContain('aria-current="page"');
+    expect(markup).toContain('href="/dashboard"');
+    expect(markup).toContain('href="/dashboard/activities"');
+    expect(markup).toContain('href="/dashboard/recovery"');
+    expect(markup).toContain('href="/dashboard/coach"');
+    expect(markup).not.toContain('href="/settings"');
+    expect(markup).not.toContain('href="/dashboard/sources"');
+    expect(markup).toContain("More");
+    expect(markup).toContain('data-active="true"');
+  });
+
+  it("uses an accessible avatar account trigger instead of inline identity text", () => {
+    const markup = renderToStaticMarkup(
+      <MainNav
+        initialUser={{ name: "Demo Runner", email: "runner@example.com" }}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Demo Runner account menu"');
+    expect(markup).toContain("Demo Runner");
+    expect(markup).not.toContain("hidden max-w-44");
   });
 });
