@@ -159,7 +159,10 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm audit --audit-level=high
+      # The production image contains Next's standalone runtime, not lint and
+      # test tooling. Audit runtime dependencies here; development tooling is
+      # covered by the separate quality jobs.
+      - run: npm audit --omit=dev --audit-level=high
 
   backend-image-build:
     name: Backend image build
