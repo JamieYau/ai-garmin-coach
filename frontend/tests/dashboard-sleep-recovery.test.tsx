@@ -101,6 +101,12 @@ describe("DashboardSleepRecovery", () => {
     expect(markup).toContain("48 bpm");
     expect(markup).toContain("12,450");
     expect(markup).toContain("Latest daily context");
+    expect(markup).toContain("sm:grid-cols-2");
+    expect(markup).toContain(
+      "Swipe horizontally to view all recovery details.",
+    );
+    expect(markup).toContain("grid min-w-0 gap-3");
+    expect(markup).toContain("h-72 w-full");
   });
 
   it("renders an empty sleep and recovery state", () => {

@@ -4,17 +4,28 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+type TableProps = React.ComponentProps<"table"> & {
+  scrollHint?: string;
+};
+
+function Table({ className, scrollHint, ...props }: TableProps) {
   return (
-    <div
-      data-slot="table-container"
-      className="relative w-full overflow-x-auto"
-    >
-      <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
-      />
+    <div className="min-w-0">
+      {scrollHint ? (
+        <p className="mb-2 text-xs text-muted-foreground sm:hidden">
+          {scrollHint}
+        </p>
+      ) : null}
+      <div
+        data-slot="table-container"
+        className="relative w-full max-w-full overflow-x-auto overscroll-x-contain"
+      >
+        <table
+          data-slot="table"
+          className={cn("w-full caption-bottom text-sm", className)}
+          {...props}
+        />
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Line, LineChart } from "recharts";
 import { describe, expect, it } from "vitest";
 
 import { ChartContainer, ChartStyle } from "@/components/ui/chart";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 describe("chart components", () => {
   it("emits themed CSS variables for chart series", () => {
@@ -52,5 +53,25 @@ describe("chart components", () => {
     expect(markup).toContain('data-slot="chart"');
     expect(markup).toContain('data-chart="chart-activity-summary"');
     expect(markup).toContain("--color-distance: var(--chart-1)");
+    expect(markup).toContain("w-full min-w-0");
+    expect(markup).toContain("overflow-hidden");
+  });
+
+  it("contains wide tables inside their own horizontal scroll region", () => {
+    const markup = renderToStaticMarkup(
+      <Table className="min-w-[760px]" scrollHint="Swipe for details.">
+        <TableBody>
+          <TableRow>
+            <TableCell>Sample row</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+
+    expect(markup).toContain("min-w-0");
+    expect(markup).toContain('data-slot="table-container"');
+    expect(markup).toContain("max-w-full overflow-x-auto overscroll-x-contain");
+    expect(markup).toContain("Swipe for details.");
+    expect(markup).toContain("min-w-[760px]");
   });
 });

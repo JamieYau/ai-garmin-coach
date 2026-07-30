@@ -185,9 +185,9 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6 sm:px-8 lg:px-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:px-10">
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
-        <div>
+        <div className="min-w-0">
           <Badge variant="secondary">Coach</Badge>
           <h1 className="mt-3 text-3xl font-semibold tracking-normal">
             Coach insight
@@ -208,7 +208,7 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
       {insight ? (
         <>
           <section
-            className="grid gap-4 md:grid-cols-4"
+            className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4"
             aria-label="Coach insight summary"
           >
             <CoachMetricCard
@@ -241,8 +241,8 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
             />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-            <Card>
+          <section className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <Brain
                   className="size-5 text-muted-foreground"
@@ -280,7 +280,7 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <Sparkles
                   className="size-5 text-muted-foreground"
@@ -319,8 +319,8 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
             </Card>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <Card>
+          <section className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-2">
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <ListChecks
                   className="size-5 text-muted-foreground"
@@ -351,7 +351,7 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <FileJson
                   className="size-5 text-muted-foreground"
@@ -389,7 +389,7 @@ export function DashboardCoachInsight({ insight }: DashboardCoachInsightProps) {
           </section>
 
           {riskFlags.length ? (
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="flex-row items-center gap-3 space-y-0">
                 <AlertTriangle
                   className="size-5 text-muted-foreground"

@@ -52,6 +52,8 @@ describe("DashboardCoachInsight", () => {
     expect(markup).toContain("61.4");
     expect(markup).toContain("deterministic-coach");
     expect(markup).toContain("daily-v1");
+    expect(markup).toContain("sm:grid-cols-2");
+    expect(markup).toContain("min-w-0");
   });
 
   it("renders an empty coach insight state", () => {

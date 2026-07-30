@@ -62,5 +62,8 @@ describe("DashboardOverview", () => {
     expect(markup).toContain("Hold aerobic volume steady");
     expect(markup).toContain("Keep the next workout easy");
     expect(markup).toContain("1/1 active");
+    expect(markup).toContain("sm:grid-cols-2");
+    expect(markup).toContain("lg:grid-cols-3");
+    expect(markup).toContain("min-w-0");
   });
 });

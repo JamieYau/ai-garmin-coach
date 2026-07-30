@@ -170,9 +170,9 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
       : `${recovery.body_battery_latest}/100`;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6 sm:px-8 lg:px-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:gap-6 sm:px-8 sm:py-6 lg:px-10">
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 lg:flex-row lg:items-end">
-        <div>
+        <div className="min-w-0">
           <Badge variant="secondary">Dashboard</Badge>
           <h1 className="mt-3 text-3xl font-semibold tracking-normal">
             Coaching overview
@@ -182,7 +182,7 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
             latest AI coach recommendation from your Garmin data.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground lg:justify-end">
           <RefreshCw className="size-4" aria-hidden="true" />
           Last sync {formatDateTime(sync.latest_sync_completed_at)}
         </div>
@@ -192,7 +192,7 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
 
       <section
         id="metrics"
-        className="grid gap-4 md:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3"
         aria-label="Training metrics"
       >
         <MetricCard
@@ -215,8 +215,8 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
         />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card id="coach">
+      <section className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card id="coach" className="min-w-0">
           <CardHeader className="flex-row items-center gap-3 space-y-0">
             <Brain
               className="size-5 text-muted-foreground"
@@ -259,7 +259,7 @@ export function DashboardOverview({ overview }: DashboardOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card id="sync">
+        <Card id="sync" className="min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle>Training context</CardTitle>

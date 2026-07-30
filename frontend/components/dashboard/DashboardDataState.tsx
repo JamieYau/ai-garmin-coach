@@ -149,7 +149,7 @@ export function DashboardDataStateBanner({
     <Alert
       variant={copy.variant}
       className={cn(
-        "items-start p-4 has-data-[slot=alert-action]:pr-4",
+        "items-start gap-2 p-3 sm:gap-3 sm:p-4 has-data-[slot=alert-action]:pr-4",
         className,
       )}
     >
@@ -157,7 +157,7 @@ export function DashboardDataStateBanner({
         className={cn("size-5", state === "sync-in-progress" && "animate-spin")}
         aria-hidden="true"
       />
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <div>
           <AlertTitle>{copy.title}</AlertTitle>
           <AlertDescription>{copy.description}</AlertDescription>

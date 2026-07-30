@@ -52,6 +52,13 @@ describe("DashboardActivities", () => {
     expect(markup).toContain("Easy spin");
     expect(markup).toContain("5:00/km");
     expect(markup).toContain("78");
+    expect(markup).toContain("sm:grid-cols-2");
+    expect(markup).toContain(
+      "Swipe horizontally to view all activity details.",
+    );
+    expect(markup).toContain("overscroll-x-contain");
+    expect(markup).toContain("grid min-w-0 gap-3");
+    expect(markup).toContain("shadow-sm min-w-0");
   });
 
   it("renders an empty activity state", () => {
