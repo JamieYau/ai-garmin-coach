@@ -106,6 +106,9 @@ describe("MainNav", () => {
     );
 
     expect(markup).toContain('href="/dashboard"');
+    expect(markup).toMatch(
+      /<a class="flex items-center gap-2 font-semibold" href="\/dashboard">/,
+    );
     expect(markup).toContain('href="/dashboard/activities"');
     expect(markup).toContain('href="/dashboard/recovery"');
     expect(markup).toContain('href="/dashboard/coach"');
