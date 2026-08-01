@@ -77,7 +77,10 @@ export function MainNav({
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-6 sm:px-8 lg:px-10">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 font-semibold"
+        >
           <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Home className="size-5" aria-hidden="true" />
           </span>

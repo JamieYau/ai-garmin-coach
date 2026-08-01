@@ -1,6 +1,8 @@
 import { Activity, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { getCurrentSession } from "@/lib/auth/server";
 import { Badge } from "@/components/ui/badge";
 
 const highlights = [
@@ -9,7 +11,13 @@ const highlights = [
   "Structured coach insights",
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await getCurrentSession();
+
+  if (session) {
+    redirect("/dashboard");
+  }
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-12 px-6 py-10 sm:px-8 lg:px-10">
