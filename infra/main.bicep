@@ -45,6 +45,9 @@ param backendImageTag string = 'bootstrap'
 @description('Final public HTTPS frontend origin, without a trailing slash.')
 param frontendOrigin string = ''
 
+@description('Parent domain used by Better Auth session cookies when the API is hosted on a frontend subdomain.')
+param betterAuthCookieDomain string = ''
+
 @secure()
 @description('Long random Better Auth secret. Provide only when configureRuntimeSecrets is true.')
 param betterAuthSecret string = ''
@@ -101,6 +104,7 @@ module platform './modules/platform.bicep' = {
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
+    betterAuthCookieDomain: betterAuthCookieDomain
     betterAuthSecret: betterAuthSecret
     demoUserPassword: demoUserPassword
     demoUserEmail: demoUserEmail

@@ -95,6 +95,10 @@ secure Bicep parameters; none are stored in source control or template outputs:
   only during deployment and read by the ingress-free demo seed job. It is not
   exposed to the frontend or API containers.
 - `FRONTEND_URL` and `BETTER_AUTH_URL`, set to the final frontend HTTPS origin.
+- `BETTER_AUTH_COOKIE_DOMAIN`, set to the shared parent domain of the frontend
+  and API hosts when they use different subdomains (for example,
+  `coach.jamieyau.com` for `coach.jamieyau.com` and
+  `api.coach.jamieyau.com`).
 - `NEXT_PUBLIC_API_BASE_URL`, set at _frontend image build time_ to the final
   backend HTTPS origin. It is public configuration, not a secret.
 - `BACKEND_CORS_ORIGINS`, set exactly to the final frontend origin; do not use a
