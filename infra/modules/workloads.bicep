@@ -6,6 +6,7 @@ param keyVaultUri string
 param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
+param betterAuthCookieDomain string
 param tags object
 param deployFrontendApp bool
 param deployApiApp bool
@@ -85,6 +86,10 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFronte
             {
               name: 'FRONTEND_URL'
               value: frontendOrigin
+            }
+            {
+              name: 'BETTER_AUTH_COOKIE_DOMAIN'
+              value: betterAuthCookieDomain
             }
             {
               name: 'BETTER_AUTH_SECURE_COOKIES'

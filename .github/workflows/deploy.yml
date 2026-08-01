@@ -32,6 +32,9 @@ jobs:
       SMOKE_TEST_EMAIL: ${{ secrets.SMOKE_TEST_EMAIL }}
       SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      FRONTEND_ORIGIN: https://coach.jamieyau.com
+      API_ORIGIN: https://api.coach.jamieyau.com
+      BETTER_AUTH_COOKIE_DOMAIN: coach.jamieyau.com
     steps:
       - uses: actions/checkout@v5
         with:
@@ -108,7 +111,8 @@ jobs:
               "frontendImageTag=$DEPLOY_SHA" \
               "demoUserEmail=$SMOKE_TEST_EMAIL" \
               "demoUserPassword=$SMOKE_TEST_PASSWORD" \
-              "frontendOrigin=https://bootstrap.invalid"
+              "frontendOrigin=$FRONTEND_ORIGIN" \
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN"
 
       - name: Run database migrations
         shell: bash
@@ -197,7 +201,8 @@ jobs:
               deployApiApp=true \
               deployMigrationJob=true \
               deployAuthMigrationJob=true \
-              "frontendOrigin=https://bootstrap.invalid" \
+              "frontendOrigin=$FRONTEND_ORIGIN" \
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.apiFqdn.value \
@@ -211,7 +216,7 @@ jobs:
           set -euo pipefail
           image="${{ steps.registry.outputs.login_server }}/garmin-coach-frontend:$DEPLOY_SHA"
           docker build \
-            --build-arg "NEXT_PUBLIC_API_BASE_URL=${{ steps.api.outputs.origin }}" \
+            --build-arg "NEXT_PUBLIC_API_BASE_URL=$API_ORIGIN" \
             --tag "$image" \
             ./frontend
           docker push "$image"
@@ -232,7 +237,8 @@ jobs:
               deployApiApp=true \
               deployMigrationJob=true \
               deployAuthMigrationJob=true \
-              "frontendOrigin=https://bootstrap.invalid" \
+              "frontendOrigin=$FRONTEND_ORIGIN" \
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.frontendFqdn.value \
@@ -256,14 +262,15 @@ jobs:
               deployScheduledSyncJob=true \
               deployMigrationJob=true \
               deployAuthMigrationJob=true \
-              "frontendOrigin=${{ steps.frontend.outputs.origin }}" \
+              "frontendOrigin=$FRONTEND_ORIGIN" \
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA"
 
       - name: Verify deployed services
         env:
-          API_ORIGIN: ${{ steps.api.outputs.origin }}
-          FRONTEND_ORIGIN: ${{ steps.frontend.outputs.origin }}
+          API_ORIGIN: ${{ env.API_ORIGIN }}
+          FRONTEND_ORIGIN: ${{ env.FRONTEND_ORIGIN }}
           SMOKE_TEST_EMAIL: ${{ env.SMOKE_TEST_EMAIL }}
           SMOKE_TEST_PASSWORD: ${{ env.SMOKE_TEST_PASSWORD }}
         shell: bash

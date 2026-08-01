@@ -16,6 +16,7 @@ param deployDemoSeedJob bool
 param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
+param betterAuthCookieDomain string
 
 @secure()
 param betterAuthSecret string
@@ -347,6 +348,7 @@ module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || 
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
+    betterAuthCookieDomain: betterAuthCookieDomain
     deployFrontendApp: deployFrontendApp
     deployApiApp: deployApiApp
     deployScheduledSyncJob: deployScheduledSyncJob

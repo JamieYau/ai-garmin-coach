@@ -24,6 +24,7 @@ param deployDemoSeedJob bool = false
 param frontendImageTag string = 'bootstrap'
 param backendImageTag string = 'bootstrap'
 param frontendOrigin string = ''
+param betterAuthCookieDomain string = ''
 
 @secure()
 param betterAuthSecret string = ''
@@ -58,6 +59,7 @@ module platform './modules/platform.bicep' = {
     frontendImageTag: frontendImageTag
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
+    betterAuthCookieDomain: betterAuthCookieDomain
     betterAuthSecret: betterAuthSecret
     demoUserPassword: demoUserPassword
     demoUserEmail: demoUserEmail
