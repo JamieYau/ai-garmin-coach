@@ -25,6 +25,8 @@ param frontendImageTag string = 'bootstrap'
 param backendImageTag string = 'bootstrap'
 param frontendOrigin string = ''
 param betterAuthCookieDomain string = ''
+param frontendCustomHostname string = ''
+param apiCustomHostname string = ''
 
 @secure()
 param betterAuthSecret string = ''
@@ -60,6 +62,8 @@ module platform './modules/platform.bicep' = {
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
     betterAuthCookieDomain: betterAuthCookieDomain
+    frontendCustomHostname: frontendCustomHostname
+    apiCustomHostname: apiCustomHostname
     betterAuthSecret: betterAuthSecret
     demoUserPassword: demoUserPassword
     demoUserEmail: demoUserEmail

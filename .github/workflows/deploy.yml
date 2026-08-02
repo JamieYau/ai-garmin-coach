@@ -34,6 +34,8 @@ jobs:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       FRONTEND_ORIGIN: https://coach.jamieyau.com
       API_ORIGIN: https://api.coach.jamieyau.com
+      FRONTEND_HOSTNAME: coach.jamieyau.com
+      API_HOSTNAME: api.coach.jamieyau.com
       BETTER_AUTH_COOKIE_DOMAIN: coach.jamieyau.com
     steps:
       - uses: actions/checkout@v5
@@ -112,7 +114,9 @@ jobs:
               "demoUserEmail=$SMOKE_TEST_EMAIL" \
               "demoUserPassword=$SMOKE_TEST_PASSWORD" \
               "frontendOrigin=$FRONTEND_ORIGIN" \
-              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN"
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
+              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
+              "apiCustomHostname=$API_HOSTNAME"
 
       - name: Run database migrations
         shell: bash
@@ -203,6 +207,8 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
+              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
+              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.apiFqdn.value \
@@ -239,6 +245,8 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
+              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
+              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.frontendFqdn.value \
@@ -264,8 +272,51 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
+              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
+              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA"
+
+      - name: Reconcile custom domain bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment_id="$(az containerapp show \
+            --name ca-garmin-coach-api \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query properties.managedEnvironmentId \
+            --output tsv)"
+          test -n "$environment_id"
+          environment_name="${environment_id##*/}"
+
+          ensure_hostname() {
+            local app_name="$1"
+            local hostname="$2"
+            local hostname_count
+
+            hostname_count="$(az containerapp hostname list \
+              --name "$app_name" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --query "[?name=='$hostname'] | length(@)" \
+              --output tsv)"
+
+            if [[ "$hostname_count" == "0" ]]; then
+              az containerapp hostname add \
+                --name "$app_name" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --hostname "$hostname"
+            fi
+
+            az containerapp hostname bind \
+              --name "$app_name" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --environment "$environment_name" \
+              --hostname "$hostname" \
+              --validation-method CNAME
+          }
+
+          ensure_hostname ca-garmin-coach-api "$API_HOSTNAME"
+          ensure_hostname ca-garmin-coach-web "$FRONTEND_HOSTNAME"
 
       - name: Verify deployed services
         env:
