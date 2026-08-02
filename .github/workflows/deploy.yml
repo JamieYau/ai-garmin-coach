@@ -114,9 +114,7 @@ jobs:
               "demoUserEmail=$SMOKE_TEST_EMAIL" \
               "demoUserPassword=$SMOKE_TEST_PASSWORD" \
               "frontendOrigin=$FRONTEND_ORIGIN" \
-              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
-              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
-              "apiCustomHostname=$API_HOSTNAME"
+              "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN"
 
       - name: Run database migrations
         shell: bash
@@ -207,8 +205,6 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
-              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
-              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.apiFqdn.value \
@@ -245,8 +241,6 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
-              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
-              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA" \
             --query properties.outputs.frontendFqdn.value \
@@ -272,8 +266,6 @@ jobs:
               deployAuthMigrationJob=true \
               "frontendOrigin=$FRONTEND_ORIGIN" \
               "betterAuthCookieDomain=$BETTER_AUTH_COOKIE_DOMAIN" \
-              "frontendCustomHostname=$FRONTEND_HOSTNAME" \
-              "apiCustomHostname=$API_HOSTNAME" \
               "frontendImageTag=$DEPLOY_SHA" \
               "backendImageTag=$DEPLOY_SHA"
 

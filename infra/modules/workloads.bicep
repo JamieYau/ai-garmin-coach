@@ -7,8 +7,6 @@ param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
 param betterAuthCookieDomain string
-param frontendCustomHostname string
-param apiCustomHostname string
 param tags object
 param deployFrontendApp bool
 param deployApiApp bool
@@ -17,20 +15,6 @@ param deployMigrationJob bool
 param deployAuthMigrationJob bool
 param deployDemoSeedJob bool
 param demoUserEmail string
-
-var frontendCustomDomains = empty(frontendCustomHostname) ? [] : [
-  {
-    name: frontendCustomHostname
-    bindingType: 'Auto'
-  }
-]
-
-var apiCustomDomains = empty(apiCustomHostname) ? [] : [
-  {
-    name: apiCustomHostname
-    bindingType: 'Auto'
-  }
-]
 
 resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFrontendApp) {
   name: 'ca-garmin-coach-web'
@@ -51,7 +35,6 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = if (deployFronte
         external: true
         targetPort: 3000
         transport: 'auto'
-        customDomains: frontendCustomDomains
         traffic: [
           {
             latestRevision: true
@@ -158,7 +141,6 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApiApp) {
         external: true
         targetPort: 8000
         transport: 'auto'
-        customDomains: apiCustomDomains
         traffic: [
           {
             latestRevision: true
