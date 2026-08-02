@@ -48,6 +48,12 @@ param frontendOrigin string = ''
 @description('Parent domain used by Better Auth session cookies when the API is hosted on a frontend subdomain.')
 param betterAuthCookieDomain string = ''
 
+@description('Custom hostname bound to the frontend Container App.')
+param frontendCustomHostname string = ''
+
+@description('Custom hostname bound to the API Container App.')
+param apiCustomHostname string = ''
+
 @secure()
 @description('Long random Better Auth secret. Provide only when configureRuntimeSecrets is true.')
 param betterAuthSecret string = ''
@@ -105,6 +111,8 @@ module platform './modules/platform.bicep' = {
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
     betterAuthCookieDomain: betterAuthCookieDomain
+    frontendCustomHostname: frontendCustomHostname
+    apiCustomHostname: apiCustomHostname
     betterAuthSecret: betterAuthSecret
     demoUserPassword: demoUserPassword
     demoUserEmail: demoUserEmail

@@ -103,6 +103,15 @@ secure Bicep parameters; none are stored in source control or template outputs:
   backend HTTPS origin. It is public configuration, not a secret.
 - `BACKEND_CORS_ORIGINS`, set exactly to the final frontend origin; do not use a
   wildcard while credentials are enabled.
+
+The Bicep workload definitions declare the API and frontend hostnames with
+Azure's automatic certificate binding. The production workflow also reconciles
+the bindings after its final Bicep deployment, which handles managed-certificate
+issuance and recovery. The DNS CNAME and `asuid` TXT validation records must
+already exist before the first deployment using a custom domain; the workflow
+uses Azure-managed certificates with CNAME validation and fails if a binding
+cannot be created.
+
 - `APP_ENV=production`, `BETTER_AUTH_SECURE_COOKIES=true`, and production rate
   limiting settings.
 - `AI_PROVIDER=mock` by default. `OPENAI_API_KEY` is required only if a later

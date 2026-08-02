@@ -17,6 +17,8 @@ param frontendImageTag string
 param backendImageTag string
 param frontendOrigin string
 param betterAuthCookieDomain string
+param frontendCustomHostname string
+param apiCustomHostname string
 
 @secure()
 param betterAuthSecret string
@@ -349,6 +351,8 @@ module workloads './workloads.bicep' = if (deployFrontendApp || deployApiApp || 
     backendImageTag: backendImageTag
     frontendOrigin: frontendOrigin
     betterAuthCookieDomain: betterAuthCookieDomain
+    frontendCustomHostname: frontendCustomHostname
+    apiCustomHostname: apiCustomHostname
     deployFrontendApp: deployFrontendApp
     deployApiApp: deployApiApp
     deployScheduledSyncJob: deployScheduledSyncJob
