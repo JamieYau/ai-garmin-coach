@@ -24,6 +24,19 @@ real images and final public origins do not exist until Phase 12.4.
 - A strong PostgreSQL administrator password supplied only through a local
   environment variable or a secure CI secret. Do not add it to a parameter file.
 
+Provider registration is a subscription-level operation. Before the first
+deployment, an Azure subscription Owner (or a role granted
+`Microsoft.Resources/subscriptions/providers/register/action`) must run:
+
+```bash
+az provider register --namespace Microsoft.App --wait
+az provider show --namespace Microsoft.App --query registrationState --output tsv
+```
+
+The second command must return `Registered`. The GitHub Actions identity is
+intentionally limited to the production resource group, so it cannot perform
+this one-time registration itself.
+
 ## Validate Before Provisioning
 
 ```bash
